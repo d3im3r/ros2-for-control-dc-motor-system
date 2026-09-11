@@ -97,7 +97,38 @@ El firmware micro-ROS corre sobre el microcontrolador ESP32 y se encarga de la i
 
 > ⚙️ **Calibración Experimental del Encoder:** $N_{\mathrm{rev}} = 960\ \text{ticks/rev}$.
 
-### 2.2. Configuración en PlatformIO (`platformio.ini`)
+### 2.2. Flujo de Trabajo en PlatformIO (Extensión de VS Code)
+
+Los archivos del firmware están organizados en el directorio [`firmware/esp32_motor_step/`](firmware/esp32_motor_step):
+
+* [`firmware/esp32_motor_step/platformio.ini`](firmware/esp32_motor_step/platformio.ini): Archivo de configuración con plataforma ESP32, framework Arduino y dependencias de micro-ROS y OLED.
+* [`firmware/esp32_motor_step/src/main.cpp`](firmware/esp32_motor_step/src/main.cpp): Firmware completo con interrupción de encoder por hardware, control de puente H por LEDC, display OLED SH1106 y publicadores/suscriptores micro-ROS.
+
+#### Procedimiento para Compilar y Flashear con VS Code:
+
+1. **Instalar la extensión:**
+   * En VS Code, ve a la pestaña de **Extensiones** (`Ctrl+Shift+X`), busca **PlatformIO IDE** e instálala.
+
+2. **Opción Recomendada — Abrir directamente la carpeta del firmware:**
+   * En VS Code: *Archivo (File)* > *Abrir carpeta (Open Folder...)* y selecciona `ros2-for-control-dc-motor-system/firmware/esp32_motor_step`.
+
+3. **Opción Alternativa — Crear un proyecto nuevo y reemplazar los archivos:**
+   * Abre **PlatformIO Home** (`icono de hormiga` > `PIOHome` > `Open`).
+   * Haz clic en **+ New Project**.
+   * Nombre: `esp32_motor_step`.
+   * Board: `Espressif ESP32 Dev Module` (o `esp32dev`).
+   * Framework: `Arduino`.
+   * Una vez creado el proyecto:
+     * Copia y **reemplaza** el archivo [`platformio.ini`](firmware/esp32_motor_step/platformio.ini) en la raíz de tu proyecto PlatformIO.
+     * Copia y **reemplaza** el archivo [`src/main.cpp`](firmware/esp32_motor_step/src/main.cpp) dentro de la carpeta `src/`.
+
+4. **Compilación y Subida al ESP32:**
+   * Conecta tu tarjeta ESP32 por USB al computador.
+   * En la barra de estado inferior de VS Code (o en el panel de PlatformIO):
+     * Haz clic en **Build** (`✔`) para compilar (PlatformIO descargará e integrará automáticamente micro-ROS y las librerías de Adafruit).
+     * Haz clic en **Upload** (`→`) para cargar el firmware al ESP32.
+
+### 2.3. Configuración en PlatformIO (`platformio.ini`)
 
 ```ini
 [env:esp32dev]
@@ -294,6 +325,12 @@ ros2-for-control-dc-motor-system/
 │   ├── guides/                          # Guías en LaTeX (Inteligente_guia0, 1, 2)
 │   ├── diagrams/                        # Diagramas de arquitectura
 │   └── images/                          # Recursos gráficos
+│
+├── firmware/                            # Firmware micro-ROS para ESP32 (PlatformIO)
+│   └── esp32_motor_step/                # Proyecto de adquisición y control del motor
+│       ├── platformio.ini               # Configuración de plataforma, libs y micro-ROS
+│       └── src/
+│           └── main.cpp                 # Firmware en C++ (encoder, PWM, OLED, micro-ROS)
 │
 ├── ros2_ws/                             # Espacio de Trabajo ROS 2 (Software Ejecutable)
 │   └── src/
