@@ -40,9 +40,9 @@ El proyecto está organizado siguiendo una metodología de control incremental y
 
 | Stage | Estado | Título | Pregunta Clave | Entregables / Archivos |
 | :---: | :---: | :--- | :--- | :--- |
-| **00** | <img src="https://img.shields.io/badge/Completado-brightgreen?style=flat-square" alt="Completado"> | **System Design** | *¿Cómo estructurar el sistema distribuido?* | [Guía 0](docs/guides/Inteligente_guia0.tex), arquitectura y contrato de tópicos. |
-| **01** | <img src="https://img.shields.io/badge/Completado-brightgreen?style=flat-square" alt="Completado"> | **Motor Instrumentation** | *¿Puedo accionar y medir correctamente?* | [Guía 1](docs/guides/Inteligente_guia1.tex), calibración ($N_{rev}=960$), bringup Stage 01. |
-| **02** | <img src="https://img.shields.io/badge/En_Progreso-orange?style=flat-square" alt="En Progreso"> | **System Identification** | *¿Qué modelo describe la dinámica del motor?* | [Guía 2](docs/guides/Inteligente_guia2.tex), curvas de reacción ($30\%, 45\%, 60\%$), modelos FOP y FOPDT. |
+| **00** | <img src="https://img.shields.io/badge/Completado-brightgreen?style=flat-square" alt="Completado"> | **System Design** | *¿Cómo estructurar el sistema distribuido?* | [Guía 0](docs/guides/Inteligente_guia0.md), arquitectura y contrato de tópicos. |
+| **01** | <img src="https://img.shields.io/badge/Completado-brightgreen?style=flat-square" alt="Completado"> | **Motor Instrumentation** | *¿Puedo accionar y medir correctamente?* | [Guía 1](docs/guides/Inteligente_guia1.md), calibración ($N_{rev}=960$), bringup Stage 01. |
+| **02** | <img src="https://img.shields.io/badge/En_Progreso-orange?style=flat-square" alt="En Progreso"> | **System Identification** | *¿Qué modelo describe la dinámica del motor?* | [Guía 2](docs/guides/Inteligente_guia2.md), curvas de reacción ($30\%, 45\%, 60\%$), modelos FOP y FOPDT. |
 | **03** | <img src="https://img.shields.io/badge/Pendiente-lightgrey?style=flat-square" alt="Pendiente"> | **Model Validation** | *¿El modelo predice datos no ensayados?* | Métricas RMSE/MAE, ajuste porcentual FIT y modelo nominal. |
 | **04** | <img src="https://img.shields.io/badge/Pendiente-lightgrey?style=flat-square" alt="Pendiente"> | **Controller Design** | *¿Qué controlador cumple los requerimientos?* | Diseño PI/PID/Inteligente y simulación dinámica. |
 | **05** | <img src="https://img.shields.io/badge/Pendiente-lightgrey?style=flat-square" alt="Pendiente"> | **Closed-Loop Control** | *¿El lazo cerrado físico responde adecuadamente?* | Validación experimental en tiempo real y rechazo a perturbaciones. |
@@ -327,7 +327,10 @@ ros2-for-control-dc-motor-system/
 ├── .gitignore                           # Reglas de exclusión de Git
 │
 ├── docs/                                # Documentación académica y guías
-│   ├── guides/                          # Guías en LaTeX (Inteligente_guia0, 1, 2)
+│   ├── guides/                          # Guías de laboratorio (Markdown y LaTeX)
+│   │   ├── Inteligente_guia0.md         # Guía 0: Diseño de nodo micro-ROS
+│   │   ├── Inteligente_guia1.md         # Guía 1: Instrumentación del motor DC
+│   │   └── Inteligente_guia2.md         # Guía 2: Identificación paramétrica
 │   ├── diagrams/                        # Diagramas de arquitectura
 │   └── images/                          # Recursos gráficos
 │
