@@ -1,325 +1,421 @@
-# Guía 1: Geometría en el Plano, Linux y Python
+# Guía 1: Nodo micro-ROS para Motor DC
 
-**Curso:** Robótica del Servicio (`ING 01335`)  
-**Facultad:** Facultad de Ingeniería  
-**Institución:** Politécnico Colombiano Jaime Isaza Cadavid  
-**Docente:** Deimer Miranda Montoya, MSc.(c). (`deimer_miranda91162@elpoli.edu.co`)  
-**Periodo Académico:** 2026-2  
+<div align="center">
+
+**Asignatura:** Control Inteligente (`ING01343-ING278`)  
+**Institución:** Politécnico Colombiano Jaime Isaza Cadavid — Facultad de Ingeniería  
+**Docente:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
+**Período Académico:** 2026-2  
+**Modalidad:** Laboratorio guiado  
+**Entregable:** Nodo `motor_step_node` funcional con calibración experimental ($N_{\text{rev}} = 960$), PWM, medición de velocidad y display OLED SH1106
+
+</div>
 
 ---
 
-| **Tiempo Estimado** | **Modalidad** | **Entregables** |
-| :---: | :---: | :---: |
-| 3 horas de trabajo independiente | Desarrollo individual | Desarrollo matemático, código Python y gráficas de validación |
+## 1. Introducción
 
----
+Antes de diseñar un controlador de velocidad es necesario disponer de una infraestructura capaz de actuar sobre el motor y medir correctamente su respuesta. En esta guía se construirá un nodo micro-ROS sobre un microcontrolador ESP32 para accionar un motor DC mediante PWM, determinar el sentido de giro, medir la velocidad angular a partir de un encoder incremental en cuadratura y publicar las variables de interés hacia ROS 2.
 
-## 1. Propósito de la guía
-
-Esta guía tiene como propósito fortalecer los fundamentos matemáticos necesarios para representar la posición y dirección de movimiento de un robot móvil en un plano bidimensional.
-
-Al finalizar las actividades, el estudiante deberá estar en capacidad de:
-
-* Representar puntos y vectores en el plano cartesiano;
-* Calcular vectores de desplazamiento;
-* Calcular la magnitud de un vector;
-* Determinar distancias entre posiciones;
-* Convertir ángulos entre grados y radianes;
-* Calcular la dirección de un vector;
-* Aplicar correctamente la función $\operatorname{atan2}$;
-* Identificar el cuadrante asociado a un desplazamiento;
-* Interpretar sistemas de referencia globales y locales;
-* Utilizar Linux para organizar archivos de trabajo;
-* Utilizar Python para verificar cálculos matemáticos;
-* Representar gráficamente posiciones, vectores y metas.
+El trabajo se desarrollará de manera progresiva:
+1. Calibración experimental del encoder ($N_{\text{rev}}$).
+2. Implementación de la medición de velocidad angular en $\text{rad/s}$ y $\text{rpm}$.
+3. Accionamiento del motor con modulación LEDC y puente H L298N.
+4. Integración de interfaces micro-ROS (suscripción a `/pwm_input`, publicación en `/vel_rad_s` y `/vel_rpm`).
+5. Visualización local en una pantalla OLED SH1106 conectada por $I^2C$.
 
 > [!NOTE]
-> **Regla fundamental:**  
-> **Primero calcular manualmente y después validar computacionalmente.**  
-> Python no reemplaza el razonamiento matemático; se utiliza como herramienta para comprobar, visualizar y analizar los resultados.
+> En esta práctica no se implementará todavía un controlador en lazo cerrado. El objetivo es construir y validar rigurosamente la infraestructura física y de software que permitirá posteriormente modelar la planta y cerrar el lazo de control.
 
 ---
 
-## 2. Fundamentos matemáticos
+### 1.1. Propósito de Aprendizaje
 
-### 2.1. Representación de un punto
+Al finalizar la guía, el estudiante estará en capacidad de:
 
-Una posición en un plano bidimensional puede representarse mediante el vector columna:
-
-$$P = \begin{bmatrix} x \\ y \end{bmatrix}$$
-
-donde $x$ representa la coordenada horizontal y $y$ la coordenada vertical.
-
-> [!NOTE]
-> **Punto:** Un punto representa una ubicación dentro de un sistema de referencia. En robótica móvil puede representar la posición del robot, una meta, un obstáculo o cualquier elemento relevante del entorno.
-
----
-
-### 2.2. Vector entre dos puntos
-
-Sean dos puntos:
-
-$$P_1 = \begin{bmatrix} x_1 \\ y_1 \end{bmatrix}, \qquad P_2 = \begin{bmatrix} x_2 \\ y_2 \end{bmatrix}$$
-
-el vector que permite desplazarse desde $P_1$ hasta $P_2$ se obtiene mediante la resta vectorial:
-
-$$\mathbf{d} = P_2 - P_1 = \begin{bmatrix} x_2 - x_1 \\ y_2 - y_1 \end{bmatrix} = \begin{bmatrix} \Delta x \\ \Delta y \end{bmatrix}$$
-
-donde:
-$$\Delta x = x_2 - x_1$$
-$$\Delta y = y_2 - y_1$$
+1. Interpretar las señales A/B en cuadratura de un encoder incremental.
+2. Utilizar interrupciones de hardware (`CHANGE`) para registrar el movimiento sin pérdida de cuentas.
+3. Determinar experimentalmente las cuentas por revolución ($N_{\text{rev}}$) del eje del motor.
+4. Estimar velocidad angular en $\text{rad/s}$ y en $\text{rpm}$.
+5. Explicar la relación entre periodo de muestreo $T_s$ y la resolución en la estimación de velocidad.
+6. Configurar PWM mediante el periférico LEDC del ESP32 ($500\text{ Hz}$, $8\text{ bits}$).
+7. Accionar un motor DC en ambos sentidos de giro mediante un puente H L298N.
+8. Implementar un subscriber y dos publishers en micro-ROS sobre FreeRTOS/Arduino.
+9. Verificar el funcionamiento del nodo y la coherencia de los datos desde ROS 2.
+10. Visualizar localmente PWM, rpm y rad/s en una pantalla OLED SH1106 ($128\times 64$).
 
 ---
 
-### 2.3. Magnitud de un vector y Distancia Euclidiana
+## 2. Sistema de Trabajo
 
-La longitud o magnitud de un vector se calcula mediante su norma euclidiana:
+El montaje experimental está compuesto por un ESP32, un módulo puente H L298N, un motor DC con encoder incremental integrado y una pantalla OLED SH1106 conectada por el bus $I^2C$. El ESP32 ejecutará el nodo micro-ROS `motor_step_node`.
 
-$$\|\mathbf{d}\| = \sqrt{(\Delta x)^2 + (\Delta y)^2}$$
+### 2.1. Asignación de Pines de Hardware
 
-En el caso de dos posiciones, esta expresión corresponde a la distancia euclidiana:
+| GPIO ESP32 | Señal | Elemento | Descripción de la Conexión |
+| :---: | :---: | :---: | :--- |
+| `GPIO 32` | `ENCA` | Encoder Canal A | Entrada de pulsos con interrupción de hardware (`CHANGE`) |
+| `GPIO 33` | `ENCB` | Encoder Canal B | Entrada de pulsos para determinar el sentido de giro |
+| `GPIO 25` | `ENB` | Puente H L298N | Modulación PWM (Canal LEDC 0, 500 Hz, 8 bits) |
+| `GPIO 27` | `IN3` | Puente H L298N | Nivel lógico de dirección de giro |
+| `GPIO 26` | `IN4` | Puente H L298N | Nivel lógico de dirección de giro |
+| `GPIO 21` | `SDA` | Pantalla OLED SH1106 | Línea de datos $I^2C$ |
+| `GPIO 22` | `SCL` | Pantalla OLED SH1106 | Línea de reloj $I^2C$ |
 
-$$d = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}$$
+```mermaid
+flowchart LR
+    ESP["ESP32<br>(micro-ROS)"] -->|"ENB, IN3, IN4<br>(GPIO 25, 27, 26)"| L298["Puente H<br>L298N"]
+    L298 -->|"Potencia (12V)"| Motor["Motor DC"]
+    Motor -->|"Giro mecánico"| Enc["Encoder A/B"]
+    Enc -->|"Pulsos A/B<br>(GPIO 32, 33)"| ESP
+    ESP -->|"Bus I2C (SDA/SCL)<br>(GPIO 21, 22)"| OLED["OLED SH1106<br>(128x64)"]
+```
+
+> [!CAUTION]
+> **Referencia de Tierra Común:**
+> El ESP32 y la fuente externa del puente H deben compartir obligatoriamente la misma referencia de tierra (`GND`). La alimentación de potencia del motor nunca debe extraerse de los pines de 3.3V o 5V del microcontrolador.
 
 ---
 
-### 2.4. Ejemplo resuelto paso a paso
+## 3. Arquitectura micro-ROS de la Guía
 
-Suponga que un robot está ubicado en la posición inicial $P_R = (-2, 1)$ y desea dirigirse hacia la meta $P_G = (3, 5)$.
+Se conservará la siguiente interfaz estándar durante toda la práctica:
 
-1. **Desplazamiento horizontal:**
-   $$\Delta x = 3 - (-2) = 5$$
+```mermaid
+flowchart TD
+    PWM["/pwm_input<br>(Float32, %)"] --> MOTOR(["motor_step_node<br>ESP32 / micro-ROS"])
+    MOTOR --> RAD["/vel_rad_s<br>(Float32, rad/s)"]
+    MOTOR --> RPM["/vel_rpm<br>(Float32, rpm)"]
+```
 
-2. **Desplazamiento vertical:**
-   $$\Delta y = 5 - 1 = 4$$
+### Contrato de Comunicación del Nodo:
 
-3. **Vector de desplazamiento:**
-   $$\mathbf{d} = \begin{bmatrix} 5 \\ 4 \end{bmatrix}$$
-
-4. **Distancia:**
-   $$d = \sqrt{5^2 + 4^2} = \sqrt{25 + 16} = \sqrt{41} \approx 6.40$$
+| Tópico | Dirección | Tipo de Mensaje | Rango / Unidades | Descripción |
+| :--- | :---: | :---: | :---: | :--- |
+| `/pwm_input` | Entrada | `std_msgs/msg/Float32` | $[-100.0, 100.0]\,\%$ | PWM de referencia firmado |
+| `/vel_rad_s` | Salida | `std_msgs/msg/Float32` | $\text{rad/s}$ | Velocidad angular estimada por el encoder |
+| `/vel_rpm` | Salida | `std_msgs/msg/Float32` | $\text{rpm}$ | Velocidad angular en revoluciones por minuto |
 
 > [!TIP]
-> El vector $(5, 4)$ indica la dirección y sentido geométrico de avance, mientras que la magnitud $\|\mathbf{d}\| \approx 6.40$ unidades indica la distancia a recorrer.
+> Un valor positivo de `/pwm_input` produce un sentido de giro definido y un valor negativo produce el giro inverso. El signo de la velocidad angular medida se conserva para mantener la coherencia direccional en todo el sistema.
 
 ---
 
-## 3. Ángulos y orientación
+## 4. Encoder Incremental e Interrupciones
 
-### 3.1. Grados y radianes
+El encoder no entrega directamente una velocidad. Genera dos señales digitales cuadradas desfasadas $90^\circ$ entre sí (denominadas A y B):
 
-La relación angular fundamental es:
+```text
+Señal A:  ___|‾‾‾|___|‾‾‾|___|‾‾‾|___
+Señal B:  _____|‾‾‾|___|‾‾‾|___|‾‾‾|_
+                  ---> Tiempo (t)
+```
 
-$$180^\circ = \pi\text{ rad}$$
+En esta implementación, el Canal A genera una interrupción de hardware en cada cambio de estado (`CHANGE`), y dentro de la rutina de servicio a la interrupción (ISR) se consulta el estado lógico del Canal B para incrementar o decrementar el contador:
 
-Factores de conversión:
-$$\theta_{\mathrm{rad}} = \theta_{\mathrm{deg}} \cdot \frac{\pi}{180}$$
-$$\theta_{\mathrm{deg}} = \theta_{\mathrm{rad}} \cdot \frac{180}{\pi}$$
+```cpp
+attachInterrupt(digitalPinToInterrupt(ENCA), encoderISR, CHANGE);
+```
 
----
+### Rutina de Servicio a la Interrupción (ISR):
 
-### 3.2. Dirección de un vector
+```cpp
+void IRAM_ATTR encoderISR() {
+    bool A = digitalRead(ENCA);
+    bool B = digitalRead(ENCB);
 
-Para un vector de desplazamiento $\mathbf{d} = \begin{bmatrix} \Delta x \\ \Delta y \end{bmatrix}$, su orientación respecto al semieje positivo $X$ se calcula como:
+    if (A != B) {
+        encoder_count--;
+    } else {
+        encoder_count++;
+    }
+}
+```
 
-$$\theta = \operatorname{atan2}(\Delta y, \Delta x)$$
+Con esta configuración se adopta la convención:
 
----
-
-### 3.3. Cálculo manual de atan2 y corrección por cuadrantes
-
-Si se utiliza la tangente inversa convencional $\theta_0 = \tan^{-1}\left(\frac{\Delta y}{\Delta x}\right)$, se debe aplicar la corrección de cuadrante:
-
-| Condición $\Delta x$ | Condición $\Delta y$ | Cuadrante / Caso | Corrección Angular $\theta$ |
-| :---: | :---: | :---: | :---: |
-| $\Delta x > 0$ | Cualquier valor | Cuadrante I o IV | $\theta = \theta_0$ |
-| $\Delta x < 0$ | $\Delta y \ge 0$ | Cuadrante II | $\theta = \theta_0 + 180^\circ$ |
-| $\Delta x < 0$ | $\Delta y < 0$ | Cuadrante III | $\theta = \theta_0 - 180^\circ$ (o $\theta_0 + 180^\circ$) |
-| $\Delta x = 0$ | $\Delta y > 0$ | Eje $+Y$ | $\theta = +90^\circ\ (+ \pi/2\text{ rad})$ |
-| $\Delta x = 0$ | $\Delta y < 0$ | Eje $-Y$ | $\theta = -90^\circ\ (- \pi/2\text{ rad})$ |
-| $\Delta x = 0$ | $\Delta y = 0$ | Origen | Indefinido |
+$$\Delta N > 0 \implies \omega > 0 \qquad\text{y}\qquad \Delta N < 0 \implies \omega < 0$$
 
 > [!WARNING]
-> No utilice únicamente $\tan^{-1}(\Delta y / \Delta x)$ sin verificar el signo de $\Delta x$ y $\Delta y$. Dos vectores opuestos (ej. $(1, 1)$ y $(-1, -1)$) producen el mismo cociente $+1$, pero apuntan a $+45^\circ$ y $-135^\circ$ respectivamente.
+> El signo positivo no es una propiedad universal del sensor; depende de la polaridad de las conexiones de los canales A/B, del montaje mecánico y de la convención lógica en la ISR. Lo fundamental es mantener una convención consistente entre la entrada y la salida.
 
----
+### ¿Por qué usar una ISR?
+Los flancos del encoder ocurren por el giro mecánico y pueden darse mientras el CPU procesa otras instrucciones. La interrupción permite registrar cada pulso de inmediato. La variable compartida debe declararse como `volatile`:
 
-## 4. Ejercicios de desarrollo manual
-
-### 4.1. Nivel 1: Puntos y vectores
-Para cada pareja calcule $\Delta x$, $\Delta y$, $\mathbf{d} = P_2 - P_1$:
-
-1. $P_1 = (1, 3), \quad P_2 = (7, 8)$
-2. $P_1 = (-2, 4), \quad P_2 = (5, 1)$
-3. $P_1 = (6, -3), \quad P_2 = (2, 5)$
-4. $P_1 = (-4, -2), \quad P_2 = (3, 6)$
-5. $P_1 = (5, 7), \quad P_2 = (-1, 2)$
-6. $P_1 = (-6, 3), \quad P_2 = (-2, -5)$
-
----
-
-### 4.2. Nivel 2: Magnitud y distancia
-Calcule el vector $\mathbf{d}$ y su norma euclidiana $d = \|\mathbf{d}\|$:
-
-7. $P_1 = (0, 0), \quad P_2 = (8, 6)$
-8. $P_1 = (-3, 2), \quad P_2 = (1, 5)$
-9. $P_1 = (4, -1), \quad P_2 = (-2, 7)$
-10. $P_1 = (-5, -4), \quad P_2 = (1, -1)$
-11. $P_1 = (3, 8), \quad P_2 = (9, 0)$
-12. $P_1 = (-7, 1), \quad P_2 = (-2, 13)$
-
----
-
-### 4.3. Nivel 3: Conversión Grados y Radianes
-
-**Convertir a radianes:**
-13. $30^\circ$
-14. $45^\circ$
-15. $120^\circ$
-16. $225^\circ$
-17. $-60^\circ$
-18. $315^\circ$
-
-**Convertir a grados:**
-19. $\frac{\pi}{6}\text{ rad}$
-20. $\frac{2\pi}{3}\text{ rad}$
-21. $-\frac{\pi}{4}\text{ rad}$
-22. $\frac{5\pi}{3}\text{ rad}$
-
----
-
-### 4.4. Nivel 4: Dirección y cuadrantes
-Para cada vector determine cuadrante, $\theta_0$, corrección en grados y radianes:
-
-23. $\mathbf{v}_1 = \begin{bmatrix} 5 \\ 2 \end{bmatrix}$
-24. $\mathbf{v}_2 = \begin{bmatrix} -4 \\ 7 \end{bmatrix}$
-25. $\mathbf{v}_3 = \begin{bmatrix} -6 \\ -3 \end{bmatrix}$
-26. $\mathbf{v}_4 = \begin{bmatrix} 2 \\ -8 \end{bmatrix}$
-27. $\mathbf{v}_5 = \begin{bmatrix} 0 \\ 5 \end{bmatrix}$
-28. $\mathbf{v}_6 = \begin{bmatrix} -7 \\ 0 \end{bmatrix}$
-
----
-
-### 4.5. Nivel 5: Posición del Robot y Meta
-Calcule $\Delta x, \Delta y, d, \theta_g = \operatorname{atan2}(\Delta y, \Delta x)$ y cuadrante relativo:
-
-29. $P_R = (2, -1), \quad P_G = (8, 3)$
-30. $P_R = (5, 2), \quad P_G = (-1, 7)$
-31. $P_R = (-2, 6), \quad P_G = (-8, 1)$
-32. $P_R = (-4, -3), \quad P_G = (3, -7)$
-33. $P_R = (6, -2), \quad P_G = (6, 7)$
-34. $P_R = (3, 5), \quad P_G = (-5, 5)$
-
----
-
-### 4.6. Nivel 6: Preguntas de Interpretación
-35. Si $\Delta x > 0$ y $\Delta y > 0$, ¿en qué cuadrante se encuentra la meta respecto al robot?
-36. Si $\Delta x < 0$ y $\Delta y > 0$, ¿qué corrección debe hacerse sobre el resultado de la tangente inversa?
-37. ¿Puede existir un vector con magnitud igual a cero y dirección definida? Explique.
-38. ¿Qué significa físicamente que $d = 0$?
-39. ¿Qué ocurre con $\operatorname{atan2}(\Delta y, \Delta x)$ cuando $\Delta x = 0$ y $\Delta y > 0$?
-40. ¿Por qué conocer únicamente la distancia no es suficiente para realizar navegación autónoma?
-
----
-
-## 5. Práctica en Linux y Organización
-
-Comandos básicos de terminal:
-
-```bash
-pwd
-mkdir -p ~/robotica_servicio/guia_01
-cd ~/robotica_servicio/guia_01
-touch geometria_robot.py
-gedit geometria_robot.py # o nano / code
+```cpp
+volatile int32_t encoder_count = 0;
 ```
-
----
-
-## 6. Validación Matemática y Visualización con Python
 
 > [!NOTE]
-> **Ubicación sugerida en el repositorio:**  
-> Estos scripts de análisis geométrico y cinemático preliminar se integran en los módulos de pruebas del repositorio o en scripts de experimentación offline dentro de [`stage_01_motor_instrumentation/`](../../stage_01_motor_instrumentation/).
+> **Pregunta de reflexión:**
+> ¿Por qué no es conveniente calcular la velocidad, escribir en la pantalla OLED o publicar un mensaje ROS directamente dentro de la ISR?
 
-### 6.1. Script de Cálculo Matemático (`geometria_robot.py`)
+---
 
-```python
-import math
+## 5. Calibración Experimental: Cuentas por Revolución ($N_{\text{rev}}$)
 
-xr, yr = -3, 1
-xg, yg = 4, -4
+Antes de calcular velocidad es indispensable determinar experimentalmente el número de cuentas registradas por una revolución completa del eje ($N_{\text{rev}}$).
 
-dx = xg - xr
-dy = yg - yr
+Este valor depende del número de ranuras o polos del sensor magnético, de la relación de reducción de la caja de engranajes ($GR$) y del modo de interrupción (`CHANGE` sobre el Canal A genera 2 cuentas por ciclo del encoder).
 
-distancia = math.sqrt(dx**2 + dy**2)
-angulo_rad = math.atan2(dy, dx)
-angulo_deg = math.degrees(angulo_rad)
+### 5.1. Programa de Calibración por Serial
 
-print(f"Delta x: {dx}")
-print(f"Delta y: {dy}")
-print(f"Distancia: {distancia:.4f}")
-print(f"Angulo [rad]: {angulo_rad:.4f}")
-print(f"Angulo [deg]: {angulo_deg:.2f}°")
+Ubicación del código de calibración en el repositorio:
+* Archivo de calibración: [`stage_01_motor_instrumentation/calibration/encoder_calibration.md`](../../stage_01_motor_instrumentation/calibration/encoder_calibration.md)
+
+```cpp
+#include <Arduino.h>
+
+#define ENCA 32
+#define ENCB 33
+
+volatile int32_t encoder_count = 0;
+
+void IRAM_ATTR encoderISR() {
+    bool A = digitalRead(ENCA);
+    bool B = digitalRead(ENCB);
+    if (A != B) {
+        encoder_count--;
+    } else {
+        encoder_count++;
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    pinMode(ENCA, INPUT_PULLUP);
+    pinMode(ENCB, INPUT_PULLUP);
+
+    attachInterrupt(digitalPinToInterrupt(ENCA), encoderISR, CHANGE);
+
+    Serial.println("=== CALIBRACION DEL ENCODER ===");
+    Serial.println("R: reiniciar contador");
+}
+
+void loop() {
+    if (Serial.available() > 0) {
+        char comando = Serial.read();
+        if (comando == 'R' || comando == 'r') {
+            noInterrupts();
+            encoder_count = 0;
+            interrupts();
+            Serial.println("Contador reiniciado a 0");
+        }
+    }
+
+    noInterrupts();
+    int32_t ticks = encoder_count;
+    interrupts();
+
+    static unsigned long previous_print_ms = 0;
+    unsigned long current_time_ms = millis();
+
+    if (current_time_ms - previous_print_ms >= 200) {
+        previous_print_ms = current_time_ms;
+        Serial.print("Ticks: ");
+        Serial.println(ticks);
+    }
+}
+```
+
+### 5.2. Procedimiento Experimental de Calibración:
+
+1. Cargar el programa de calibración en el ESP32.
+2. Abrir el monitor serial a `115200 baud`.
+3. Colocar una marca visual de alineación en el eje del motor respecto a una referencia fija.
+4. Enviar el carácter `R` para reiniciar el contador a cero.
+5. Girar manualmente el eje exactamente una revolución completa ($360^\circ$).
+6. Registrar el valor final de `Ticks`.
+7. Repetir el procedimiento 5 veces.
+
+| Ensayo | Ticks Medidos ($N_i$) | $|N_i|$ |
+| :---: | :---: | :---: |
+| 1 | 960 | 960 |
+| 2 | 960 | 960 |
+| 3 | 960 | 960 |
+| 4 | 960 | 960 |
+| 5 | 960 | 960 |
+
+$$\boxed{N_{\text{rev}} = \frac{\sum_{i=1}^5 |N_i|}{5} = 960\ \text{ticks/rev}}$$
+
+En el firmware principal se establece:
+
+```cpp
+const float COUNTS_PER_REV = 960.0f;
 ```
 
 ---
 
-### 6.2. Script de Visualización con Matplotlib
+## 6. Estimación de Velocidad Angular
 
-```python
-import matplotlib.pyplot as plt
+El contador acumula posición. La velocidad se calcula a partir del desplazamiento angular ocurrido entre dos instantes de muestreo:
 
-xr, yr = -3, 1
-xg, yg = 4, -4
+$$\Delta N[k] = N[k] - N[k-1]$$
 
-dx = xg - xr
-dy = yg - yr
+$$\Delta\theta[k] = \frac{2\pi \Delta N[k]}{N_{\text{rev}}}\quad [\text{rad}]$$
 
-plt.figure(figsize=(7, 7))
-plt.scatter(xr, yr, color="blue", s=100, label="Robot $P_R$")
-plt.scatter(xg, yg, color="red", s=100, label="Meta $P_G$")
+$$\boxed{\omega[k] = \frac{2\pi \Delta N[k]}{N_{\text{rev}} \Delta t}\quad [\text{rad/s}]}$$
 
-plt.quiver(
-    xr, yr, dx, dy,
-    angles="xy",
-    scale_units="xy",
-    scale=1,
-    color="darkgreen",
-    label="Vector Desplazamiento $\mathbf{d}$"
-)
+$$\boxed{n[k] = \frac{60 \Delta N[k]}{N_{\text{rev}} \Delta t} = \omega[k]\left(\frac{60}{2\pi}\right)\quad [\text{rpm}]}$$
 
-plt.axhline(0, color="gray", linestyle="--", linewidth=0.8)
-plt.axvline(0, color="gray", linestyle="--", linewidth=0.8)
+### 6.1. Muestreo a 10 Hz ($T_s = 0.1\text{ s}$) y Medición Real de $\Delta t$
 
-plt.xlabel("Coordenada X")
-plt.ylabel("Coordenada Y")
-plt.title(f"Trayectoria: Distancia={math.sqrt(dx**2+dy**2):.2f}, Ángulo={math.degrees(math.atan2(dy,dx)):.1f}°")
-plt.axis("equal")
-plt.grid(True)
-plt.legend()
-plt.show()
+Aunque el timer de micro-ROS se configura para dispararse cada $100\text{ ms}$, el tiempo transcurrido real se mide con `millis()` para compensar pequeñas fluctuaciones del planificador:
+
+```cpp
+unsigned long current_time_ms = millis();
+float dt = (current_time_ms - previous_time_ms) * 0.001f;
+previous_time_ms = current_time_ms;
+```
+
+### 6.2. Lectura Segura (Sección Crítica)
+
+Como `encoder_count` se modifica en la ISR de forma asíncrona, se accede a ella protegiendo la lectura:
+
+```cpp
+noInterrupts();
+int32_t current_count = encoder_count;
+interrupts();
+
+int32_t delta_count = current_count - previous_count;
+previous_count = current_count;
 ```
 
 ---
 
-## 7. Reto Integrador: Navegación Multiobjetivo
+## 7. Accionamiento del Motor Mediante PWM (LEDC)
 
-Considere la siguiente secuencia consecutiva de puntos de navegación:
+Para controlar la velocidad del motor DC mediante el puente H L298N se configura el periférico LEDC del ESP32:
 
-$$P_R = (0, 0) \rightarrow P_1 = (4, 3) \rightarrow P_2 = (-2, 7) \rightarrow P_3 = (-6, -1) \rightarrow P_4 = (3, -5)$$
+```cpp
+const int canal_pwm = 0;
+const int frecuencia_pwm = 500; // 500 Hz
+const int resolucion_pwm = 8;   // 8 bits (0 - 255)
 
-1. Calcule manualmente $\Delta x, \Delta y, \mathbf{d}, d, \theta_{\mathrm{deg}}, \theta_{\mathrm{rad}}$ para cada tramo.
-2. Implemente un script en Python que itere sobre la lista de puntos, calcule la distancia acumulada total y grafique la trayectoria con flechas direccionales.
+ledcSetup(canal_pwm, frecuencia_pwm, resolucion_pwm);
+ledcAttachPin(ENB, canal_pwm);
+```
+
+La referencia de entrada recibida en `/pwm_input` está en porcentaje $[-100.0, 100.0]\,\%$ y se convierte a la escala de 8 bits:
+
+$$\boxed{PWM_{\text{raw}} = \text{int}\left(\frac{|u|}{100} \cdot 255\right)}$$
+
+| $u$ ($\%$) | `IN3` (`GPIO 27`) | `IN4` (`GPIO 26`) | `ENB` (`GPIO 25`) | Resultado |
+| :---: | :---: | :---: | :---: | :--- |
+| $u > 0$ | `LOW` | `HIGH` | $PWM_{\text{raw}}$ | Giro en sentido positivo |
+| $u < 0$ | `HIGH` | `LOW` | $PWM_{\text{raw}}$ | Giro en sentido negativo |
+| $u = 0$ | `LOW` | `LOW` | $0$ | Motor detenido |
+
+### Código Mínimo de Verificación de Hardware:
+
+```cpp
+#include <Arduino.h>
+
+#define ENB 25
+#define IN3 27
+#define IN4 26
+
+const int canal_pwm = 0;
+
+void setup() {
+    pinMode(IN3, OUTPUT);
+    pinMode(IN4, OUTPUT);
+    ledcSetup(canal_pwm, 500, 8);
+    ledcAttachPin(ENB, canal_pwm);
+
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, HIGH);
+    ledcWrite(canal_pwm, 150); // Giro de prueba a ~58%
+}
+
+void loop() {}
+```
 
 ---
 
-## 8. Relación con la Instrumentación del Motor DC (Stage 01)
+## 8. Diseño Temporal de `motor_step_node`
 
-En el sistema de control de motor DC de este repositorio ([`stage_01_motor_instrumentation`](../../stage_01_motor_instrumentation)):
-* La posición angular $\theta(t)$ del rotor se obtiene a partir de la cuenta discreta de pulsos del encoder de cuadratura:
-  $$\theta(t) = \frac{2\pi \cdot \Delta \text{ticks}}{N_{\mathrm{rev}}} \quad [\text{rad}], \qquad N_{\mathrm{rev}} = 960\ \text{ticks/rev}$$
-* La velocidad angular $\omega(t)$ se calcula por derivación numérica en tiempo discreto ($T_s = 0.1\text{ s}$):
-  $$\omega(t) = \frac{\theta(k) - \theta(k-1)}{T_s} = \frac{2\pi \cdot \Delta \text{count}}{N_{\mathrm{rev}} \cdot T_s} \quad [\text{rad/s}]$$
-  código implementado en el firmware del ESP32: [`firmware/esp32_motor_step/src/main.cpp`](../../firmware/esp32_motor_step/src/main.cpp#L140-L157).
+```mermaid
+flowchart TD
+    ISR["ISR Encoder<br>(ENCA CHANGE)"] --> COUNT["Actualizar encoder_count<br>(atómico)"]
+    TIMER["Timer micro-ROS<br>(Cada 100 ms)"] --> CALC["Calcular dt, delta_count,<br>vel_rad_s y vel_rpm"]
+    COUNT -.-> CALC
+    CALC --> PUB["Publicar en /vel_rad_s<br>y en /vel_rpm"]
+    CALC --> OLED["Actualizar pantalla OLED<br>(128x64)"]
+    SUB["Callback /pwm_input<br>(Al recibir dato)"] --> PWM["aplicarPWM(data)<br>Configura IN3/IN4 y LEDC"]
+```
+
+---
+
+## 9. Visualización Local en OLED SH1106 ($I^2C$)
+
+La pantalla OLED SH1106 ($128\times 64$) muestra la información en tiempo real sin interferir en los tiempos de micro-ROS:
+
+```text
++-----------------------+
+|   --- MOTOR STEP ---  |
+| PWM Ref:   45.0 %     |
+| RPM:      125.4       |
+| Vel:       13.13 rad/s|
++-----------------------+
+```
+
+---
+
+## 10. Implementación Final en el Repositorio
+
+Los archivos del firmware están listos para ser utilizados en:
+
+* **Configuración del proyecto:** [`firmware/esp32_motor_step/platformio.ini`](../../firmware/esp32_motor_step/platformio.ini)
+* **Código fuente del firmware:** [`firmware/esp32_motor_step/src/main.cpp`](../../firmware/esp32_motor_step/src/main.cpp)
+
+---
+
+## 11. Procedimiento de Integración y Verificación Paso a Paso
+
+1. **Iniciar el micro-ROS Agent:**
+   ```bash
+   ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
+   ```
+2. **Verificar que el nodo y los tópicos existan:**
+   ```bash
+   ros2 node list      # Debe aparecer: /motor_step_node
+   ros2 topic list     # Debe mostrar: /pwm_input, /vel_rad_s, /vel_rpm
+   ```
+3. **Verificar tasa de muestreo (10 Hz):**
+   ```bash
+   ros2 topic hz /vel_rad_s
+   ```
+4. **Accionamiento en sentido positivo (40% PWM):**
+   ```bash
+   ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: 40.0}" --once
+   ```
+5. **Detención segura (0% PWM):**
+   ```bash
+   ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: 0.0}" --once
+   ```
+6. **Accionamiento en sentido inverso (-40% PWM):**
+   ```bash
+   ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: -40.0}" --once
+   ```
+7. **Verificar equivalencia matemática entre $\text{rpm}$ y $\text{rad/s}$:**
+   $$\omega = n \cdot \frac{2\pi}{60}$$
+
+---
+
+## 12. Análisis y Discusión
+
+1. ¿Por qué $N_{\text{rev}}$ debe determinarse experimentalmente con el mismo modo de interrupción (`CHANGE`) que se utilizará en el firmware final?
+2. ¿Qué ocurriría con la escala de velocidad si se asumiera un valor de cuentas por revolución dos veces mayor al real?
+3. ¿Por qué debe conservarse el signo de $\Delta N[k]$ en lugar de calcular su valor absoluto?
+4. ¿Cuál es la diferencia de ejecución entre la ISR del encoder y el callback de `/pwm_input`?
+5. ¿Qué ventaja tiene medir el $\Delta t$ real transcurrido con `millis()` frente a asumir un valor constante de $0.1\text{ s}$?
+6. ¿Por qué la pantalla OLED debe considerarse una interfaz pasiva y nunca una etapa de medición o control?
+
+---
+
+## 13. Cierre y Resultado Esperado
+
+$$\boxed{\text{Comando PWM en ROS 2} \longrightarrow \text{Puente H L298N} \longrightarrow \text{Motor DC} \longrightarrow \text{Encoder en Cuadratura} \longrightarrow \text{Publicación de } \omega(t)\text{ a 10 Hz}}$$
+
+Al completar esta guía se cuenta con una plataforma de instrumentación robusta y calibrada, lista para la adquisición automatizada de datos y la identificación de funciones de transferencia de primer orden con y sin retardo (FOP / FOPDT).

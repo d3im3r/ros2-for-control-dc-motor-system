@@ -16,7 +16,7 @@ env/
 venv/
 .venv/
 
-# LaTeX files
+# LaTeX
 *.tex
 *.aux
 *.log
@@ -27,6 +27,12 @@ venv/
 *.fdb_latexmk
 *.bbl
 *.blg
+_minted*/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
 
 # IDEs and Editors
 .vscode/

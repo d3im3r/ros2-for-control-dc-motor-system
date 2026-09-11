@@ -1,572 +1,413 @@
-# Guía de Instalación: Linux, ROS 2 Humble y micro-ROS
+# Guía 0: Diseño de un Nodo micro-ROS para Motor DC
 
-**Curso:** Robótica del Servicio (`ING 01335`)  
-**Facultad:** Facultad de Ingeniería  
-**Institución:** Politécnico Colombiano Jaime Isaza Cadavid  
-**Docente:** Deimer Miranda Montoya, MSc.(c). (`deimer_miranda91162@elpoli.edu.co`)  
-**Periodo Académico:** 2026-2  
+<div align="center">
+
+**Asignatura:** Control Inteligente (`ING01343-ING278`)  
+**Institución:** Politécnico Colombiano Jaime Isaza Cadavid — Facultad de Ingeniería  
+**Docente:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
+**Período Académico:** 2026-2  
+**Dedicación estimada:** 3 a 4 horas (Trabajo autónomo guiado e individual)  
+**Plataforma:** Pop!_OS / Ubuntu 22.04 LTS + ROS 2 Humble + ESP32 + micro-ROS
+
+</div>
 
 ---
 
-| **Tiempo Estimado** | **Modalidad** | **Resultado Esperado** |
-| :---: | :---: | :---: |
-| 2 a 4 horas (según velocidad de descarga e instalación) | Trabajo autónomo guiado e individual | Equipo con Linux 22.04, ROS 2 Humble y micro-ROS correctamente configurados |
+## 1. Introducción
+
+En un sistema de control no es suficiente con disponer de un algoritmo matemático. Para actuar sobre una planta real es necesario medir variables, procesar información y convertir las decisiones del controlador en señales capaces de accionar físicamente el sistema.
+
+En esta práctica se diseñará e implementará un nodo micro-ROS sobre un microcontrolador ESP32 para interactuar con un motor DC. El montaje está compuesto por:
+
+* Un computador con **Pop!_OS / Ubuntu 22.04 LTS** y **ROS 2 Humble**.
+* Un **ESP32** ejecutando **micro-ROS**.
+* Un puente H **L298N**.
+* Un **motor DC** con caja reductora.
+* Un **encoder incremental de cuadratura**.
+
+El objetivo principal de la guía no es comenzar escribiendo código. Primero se comprenderá el sistema, posteriormente se establecerán las responsabilidades de cada componente, se diseñarán las interfaces de comunicación y, solamente después, estas decisiones se traducirán a una implementación en software.
+
+> [!TIP]
+> **Principio de Diseño:**
+> El diseño de un nodo debe comenzar preguntando qué debe hacer, qué información necesita, qué información produce y cuándo debe procesarla.
 
 ---
 
-## 1. Propósito de la guía
+### 1.1. Propósito de Aprendizaje
 
-Esta guía tiene como propósito preparar el entorno computacional que será utilizado durante el curso de **Robótica del Servicio**.
+Al finalizar la práctica, el estudiante estará en capacidad de:
 
-El entorno estará compuesto principalmente por:
+1. Explicar la arquitectura física y de software de un sistema distribuido **ROS 2 — micro-ROS**.
+2. Establecer la responsabilidad de un nodo micro-ROS en un microcontrolador.
+3. Diseñar tópicos, mensajes y unidades de ingeniería antes de programar.
+4. Diferenciar callbacks, interrupciones de hardware (ISR), timers y executors.
+5. Adquirir las señales de un encoder incremental en cuadratura.
+6. Estimar velocidad angular en $\text{rad/s}$ y en $\text{rpm}$.
+7. Accionar un motor DC mediante PWM y un puente H L298N.
+8. Integrar el ESP32 con ROS 2 mediante `micro_ros_agent`.
+9. Visualizar y almacenar experimentalmente la respuesta del sistema.
 
-* Pop!_OS 22.04 LTS o Ubuntu 22.04 LTS;
-* ROS 2 Humble;
-* Herramientas de desarrollo para ROS 2;
-* Python 3;
-* Git;
-* colcon;
-* rosdep;
-* micro-ROS;
-* micro-ROS Agent.
+---
+
+### 1.2. Relación con la Asignatura (Control Inteligente)
+
+En un sistema de control de velocidad interesa comparar la velocidad deseada con la velocidad real de la planta:
+
+$$e(t) = \omega_{\text{ref}}(t) - \omega(t)$$
+
+Posteriormente, un controlador utiliza este error para determinar una acción de control $u(t)$.
+
+Sin embargo, antes de implementar un controlador es necesario responder dos preguntas fundamentales:
+
+$$\textbf{¿Cómo obtiene el sistema la velocidad del motor y cómo convierte una acción de control en movimiento físico?}$$
+
+Esta práctica desarrolla precisamente esa infraestructura. La arquitectura obtenida servirá como base para la cadena metodológica:
+
+$$\boxed{\text{Prueba Escalón} \longrightarrow \text{Datos CSV} \longrightarrow \text{Identificación Paramétrica} \longrightarrow \text{Modelo Matemático} \longrightarrow \text{Control en Lazo Cerrado}}$$
+
+---
+
+## 2. Conceptos Fundamentales de ROS 2 y micro-ROS
+
+ROS 2 permite construir sistemas distribuidos mediante componentes modulares de software que intercambian información.
+
+### Conceptos Clave:
+
+* **Nodo:** Unidad lógica de ejecución encargada de una responsabilidad determinada.
+* **Tópico:** Canal lógico unidireccional o multidireccional mediante el cual circula información entre nodos bajo el patrón publicador/suscriptor.
+* **Mensaje:** Estructura de datos fuertemente tipada que define la organización de los datos intercambiados.
+* **Publisher y Subscriber:** Mecanismos utilizados respectivamente para emitir y recibir mensajes en un tópico.
 
 > [!NOTE]
-> **Idea Clave:**  
-> La finalidad de esta guía no es simplemente copiar y ejecutar comandos. En cada etapa se explicará qué se está instalando, por qué es necesario, qué resultado debería obtenerse y cómo comprobar que la instalación funciona correctamente.
-
----
-
-## 2. Arquitectura del entorno de desarrollo
-
-Durante el curso se utilizará una arquitectura distribuida en la que el computador ejecutará ROS 2 y posteriormente se comunicará con un microcontrolador ESP32 mediante micro-ROS.
+> Un nodo no debe confundirse con un dispositivo físico. Un computador puede ejecutar múltiples nodos simultáneamente y el ESP32 ejecutará un nodo micro-ROS.
 
 ```mermaid
 flowchart LR
-    A["Linux<br><b>ROS 2 Humble</b>"] <--> B["<b>micro-ROS<br>Agent</b>"]
-    B <--> C["ESP32<br><b>micro-ROS</b>"]
+    pub([Nodo Publicador]) -->|"/topico"| sub([Nodo Suscriptor])
 ```
 
-El computador será utilizado para tareas como:
-
-* Programación;
-* Visualización;
-* Análisis de datos;
-* Ejecución de nodos ROS 2;
-* Supervisión del robot;
-* Comunicación con el sistema embebido.
-
-Posteriormente, el ESP32 permitirá ejecutar tareas de bajo nivel como adquisición de sensores, lectura de encoders y control de actuadores (ubicado en [`firmware/esp32_motor_step/`](../../firmware/esp32_motor_step)).
+**Convención Gráfica:**
+* **Elipses (`([ ... ])`):** Nodos ROS 2 o micro-ROS.
+* **Rectángulos con bordes redondeados (`[ ... ]`):** Tópicos.
+* **Rectángulos convencionales:** Componentes físicos o módulos de hardware.
 
 ---
 
-## 3. Requisitos previos
+### 2.1. ¿Qué aporta micro-ROS?
 
-Antes de comenzar se recomienda disponer de:
+ROS 2 se ejecuta normalmente en computadores con sistemas operativos completos (Linux POSIX). Un microcontrolador como el ESP32 dispone de recursos limitados de memoria y cómputo.
 
-* Computador de arquitectura x86-64;
-* Conexión estable a Internet;
-* Memoria USB de al menos 8 GB;
-* Copia de seguridad de la información importante;
-* Acceso administrativo al computador;
-* Al menos 40 GB de espacio disponible en disco.
+micro-ROS permite integrar estos microcontroladores al ecosistema ROS 2 conservando conceptos estándar como:
+* Nodos
+* Publishers y Subscribers
+* Mensajes tipados (`std_msgs`, `geometry_msgs`, etc.)
+* Timers
+* Executors
 
-Para la creación de la memoria USB mediante Rufus será necesario disponer temporalmente de un computador con Windows.
-
-> [!CAUTION]
-> **Advertencia sobre particiones:**  
-> La instalación de un sistema operativo puede modificar o eliminar particiones del disco. Antes de continuar, realice una copia de seguridad de toda la información importante almacenada en el computador.
+Esto permite que el ESP32 interactúe de forma transparente con otros nodos ROS 2 mientras se encarga de tareas de tiempo real estricto en el hardware.
 
 ---
 
-## 4. Parte I: Instalación de Linux
+### 2.2. micro-ROS Agent
 
-### 4.1. Sistema operativo recomendado
+El `micro_ros_agent` es un nodo ejecutable en el computador que actúa como intermediario entre el cliente micro-ROS del ESP32 y el middleware DDS de ROS 2:
 
-Para el curso se recomienda utilizar:
-
-**Pop!_OS 22.04 LTS**
-
-Como alternativa puede utilizarse:
-
-**Ubuntu 22.04 LTS**
-
-> [!NOTE]
-> Pop!_OS 22.04 está basado en Ubuntu 22.04 y ofrece un entorno de escritorio adecuado para programación, ingeniería y robótica. Ubuntu 22.04 también puede utilizarse directamente durante el curso.
-
----
-
-### 4.2. Descarga de Pop!_OS 22.04
-
-Pop!_OS proporciona imágenes diferentes dependiendo del hardware gráfico del computador.
-
-#### Versión Intel/AMD
-Utilice esta imagen si el computador posee:
-* Gráficos integrados Intel;
-* Gráficos integrados AMD;
-* Tarjeta gráfica AMD;
-* O no posee una tarjeta NVIDIA dedicada.
-
-* **Descarga directa:** [pop-os_22.04_amd64_intel_58.iso](https://iso.pop-os.org/22.04/amd64/intel/58/pop-os_22.04_amd64_intel_58.iso)
-* **Valor MD5:** `c3d65fc6f9b945ea1f56713749caa173`
-
-#### Versión NVIDIA
-Utilice esta imagen si el computador posee una tarjeta gráfica **NVIDIA dedicada**.
-
-* **Descarga directa:** [pop-os_22.04_amd64_nvidia_58.iso](https://iso.pop-os.org/22.04/amd64/nvidia/58/pop-os_22.04_amd64_nvidia_58.iso)
-* **Valor MD5:** `5e6d1f058a0a8c137a3c659f9f9675b1`
+$$\boxed{\text{ROS 2 (DDS)} \longleftrightarrow \text{micro-ROS Agent (PC)} \longleftrightarrow \text{ESP32 (micro-ROS Client)}}$$
 
 > [!WARNING]
-> **Seleccione correctamente la imagen:**  
-> Si su computador utiliza gráficos Intel o AMD, utilice la versión **Intel/AMD**. Si posee una tarjeta NVIDIA dedicada, utilice la versión **NVIDIA**.
+> El Agent no controla el motor, no calcula la velocidad y no genera PWM. Su única responsabilidad es permitir la comunicación y conversión de capas entre micro-ROS y el grafo de ROS 2.
 
 ---
 
-### 4.3. Alternativa: Ubuntu 22.04
+## 3. Arquitectura Física del Sistema
 
-Ubuntu 22.04 LTS puede descargarse desde: [https://releases.ubuntu.com/jammy/](https://releases.ubuntu.com/jammy/)  
-Seleccione la opción: **64-bit PC (AMD64) desktop image**.
+El sistema se divide en procesamiento, comunicación, potencia, actuación y sensado:
+
+| Elemento | Responsabilidad Principal |
+| :--- | :--- |
+| **Computador (PC)** | Ejecutar ROS 2 Humble, `micro_ros_agent` y los nodos de visualización, almacenamiento y control. |
+| **ESP32** | Recibir PWM, atender interrupciones del encoder, calcular velocidades y modular PWM hacia el puente H. |
+| **Puente H L298N** | Actuar como etapa de potencia entre el ESP32 y el motor DC. |
+| **Motor DC** | Convertir energía eléctrica en movimiento mecánico rotacional. |
+| **Encoder Incremental** | Convertir el giro del eje en trenes de pulsos digitales en cuadratura A/B. |
+
+```mermaid
+flowchart LR
+    PC["Computador<br>(ROS 2)"] <-->|"Comunicación Serial<br>(115200 baud)"| ESP["ESP32<br>(micro-ROS)"]
+    ESP -->|"PWM + Dirección<br>(ENB, IN3, IN4)"| L298["Puente H<br>L298N"]
+    L298 -->|"Potencia Eléctrica<br>(12 V)"| Motor["Motor DC"]
+    Motor -->|"Giro Mecánico"| Encoder["Encoder A/B"]
+    Encoder -->|"Pulsos A/B<br>(GPIO 32, 33)"| ESP
+```
+
+* **Cadena de accionamiento:**
+  $$\boxed{\text{Procesamiento (ESP32)} \longrightarrow \text{Potencia (L298N)} \longrightarrow \text{Actuación (Motor DC)}}$$
+* **Cadena de realimentación/sensado:**
+  $$\boxed{\text{Movimiento (Eje)} \longrightarrow \text{Sensado (Encoder)} \longrightarrow \text{Procesamiento (ESP32)}}$$
+
+### Asignación de Pines de Hardware:
+
+| GPIO ESP32 | Señal | Elemento / Módulo | Descripción |
+| :---: | :---: | :---: | :--- |
+| `GPIO 25` | `ENB` | Puente H L298N | Modulación PWM (Canal LEDC 0, 500 Hz, 8 bits) |
+| `GPIO 27` | `IN3` | Puente H L298N | Dirección de giro lógico |
+| `GPIO 26` | `IN4` | Puente H L298N | Dirección de giro lógico |
+| `GPIO 32` | `ENCA` (Canal A) | Encoder | Interrupción de hardware (`CHANGE`) |
+| `GPIO 33` | `ENCB` (Canal B) | Encoder | Detección de sentido de giro |
+| `GPIO 21` | `SDA` | Pantalla OLED SH1106 | Línea de datos $I^2C$ |
+| `GPIO 22` | `SCL` | Pantalla OLED SH1106 | Línea de reloj $I^2C$ |
 
 ---
 
-### 4.4. Verificar la imagen descargada
+## 4. Arquitectura de Software del Laboratorio
 
-Antes de crear la memoria USB se recomienda verificar que el archivo ISO se haya descargado correctamente.
+El sistema distribuido separa claramente las tareas de tiempo real en el microcontrolador de las tareas de alto nivel en el computador:
+
+```mermaid
+flowchart TD
+    subgraph Microcontrolador ["ESP32 (micro-ROS / C++)"]
+        PWM_TOPIC["/pwm_input<br>(Float32, %)"] --> MOTOR_NODE(["motor_step_node"])
+        MOTOR_NODE --> VEL_RAD["/vel_rad_s<br>(Float32, rad/s)"]
+        MOTOR_NODE --> VEL_RPM["/vel_rpm<br>(Float32, rpm)"]
+    end
+
+    subgraph Computador ["Computador (ROS 2 / Python)"]
+        VEL_RAD --> DB_NODE(["step_response_DB<br>(data_logger.py)"])
+        PWM_TOPIC -.-> DB_NODE
+        VEL_RAD --> GRAPH_NODE(["vel_ang_motor<br>(velocity_monitor.py)"])
+    end
+```
 
 > [!NOTE]
-> **¿Qué es un hash?**  
-> Un hash es un valor calculado a partir del contenido de un archivo. Si el archivo descargado cambia o se corrompe, el valor obtenido será diferente al suministrado originalmente.
+> **Pregunta de reflexión:**
+> ¿Por qué resulta conveniente que la generación de gráficas en tiempo real y el almacenamiento de datos en archivos CSV se ejecuten en el computador y no dentro del ESP32?
 
-En Windows, abra **PowerShell** en la carpeta donde descargó la imagen.
+---
 
-Para la versión Intel/AMD:
-```powershell
-Get-FileHash .\pop-os_22.04_amd64_intel_58.iso -Algorithm MD5
+## 5. Flujo de Información
+
+Cuando se aplica un comando de entrada (por ejemplo $u = 50\,\%$):
+
+1. Un nodo de ROS 2 en el PC publica el valor numérico en `/pwm_input`.
+2. El nodo `motor_step_node` en el ESP32 recibe el mensaje a través de micro-ROS.
+3. El executor despacha el callback de suscripción asociado.
+4. El ESP32 aplica la dirección en `IN3`/`IN4` y el ciclo útil PWM en `ENB`.
+5. El puente H L298N suministra la corriente requerida al motor DC.
+6. El motor gira y el encoder genera pulsos digitales A y B.
+7. Las interrupciones de hardware en el ESP32 actualizan el contador de ticks en tiempo real.
+8. Un timer periódico (cada $T_s = 0.1\text{ s}$) calcula la velocidad angular en $\text{rad/s}$ y $\text{rpm}$.
+9. El ESP32 publica los valores en `/vel_rad_s` y `/vel_rpm` y actualiza la pantalla OLED.
+10. Los nodos en el computador reciben las velocidades para graficarlas y guardarlas en un archivo CSV.
+
+$$\boxed{\text{PWM} \longrightarrow \text{Accionamiento} \longrightarrow \text{Movimiento} \longrightarrow \text{Encoder} \longrightarrow \text{Velocidad estimada} \longrightarrow \text{Publicación ROS 2}}$$
+
+---
+
+## 6. Diseño del Nodo micro-ROS (`motor_step_node`)
+
+### Responsabilidades del nodo `motor_step_node`:
+1. Recibir el comando de PWM desde el tópico `/pwm_input`.
+2. Saturar la entrada dentro del rango seguro $[-100.0, 100.0]\,\%$.
+3. Configurar los pines de dirección `IN3` e `IN4`.
+4. Generar el ciclo útil PWM mediante el periférico LEDC del ESP32.
+5. Adquirir las transiciones del encoder por interrupciones de hardware.
+6. Calcular la velocidad angular en $\text{rad/s}$ y en $\text{rpm}$ cada periodo de muestreo $T_s$.
+7. Publicar en los tópicos `/vel_rad_s` y `/vel_rpm`.
+8. Refrescar localmente las mediciones en la pantalla OLED.
+
+### Lo que NO debe hacer el nodo:
+* No debe generar gráficas con librerías pesadas.
+* No debe escribir archivos CSV ni gestionar sistemas de archivos.
+* No debe ejecutar algoritmos de identificación offline.
+
+---
+
+## 7. Arquitectura Temporal del Nodo
+
+| Evento | Mecanismo | Acción Ejecutada |
+| :--- | :--- | :--- |
+| **Llega nuevo PWM** | Callback de suscripción ROS | Actualizar la referencia de entrada y configurar pines de potencia |
+| **Flanco del encoder** | ISR (*Interrupt Service Routine*) | Incrementar o decrementar el contador atómico de ticks |
+| **Cada $T_s = 100\text{ ms}$** | Timer periódico micro-ROS | Calcular $\Delta N$, estimar $\omega$ y $n$, publicar tópicos y refrescar OLED |
+| **Eventos disponibles** | Executor micro-ROS | Coordinar la ejecución ordenada de callbacks y timers |
+
+### 7.1. Callback de Suscripción
+Se ejecuta de forma asíncrona cuando un mensaje llega al tópico `/pwm_input`:
+
+$$\text{Mensaje en } \texttt{/pwm\_input} \longrightarrow \text{Callback} \longrightarrow \text{Actualización de PWM y dirección}$$
+
+### 7.2. Interrupciones e ISR (Encoder)
+El encoder genera pulsos mecánicos rápidos que no pueden esperarse mediante lecturas secuenciales en un bucle (*polling*), pues se perderían cuentas durante otras operaciones:
+
+$$\boxed{\text{Flanco en Canal A} \longrightarrow \text{ISR de hardware} \longrightarrow \text{Actualización de } \texttt{encoder\_count}}$$
+
+```cpp
+// Declaración de variable modificada en ISR
+volatile int32_t encoder_count = 0;
+
+void IRAM_ATTR encoderISR() {
+    bool A = digitalRead(ENCA);
+    bool B = digitalRead(ENCB);
+    if (A != B) {
+        encoder_count--;
+    } else {
+        encoder_count++;
+    }
+}
 ```
-
-Para la versión NVIDIA:
-```powershell
-Get-FileHash .\pop-os_22.04_amd64_nvidia_58.iso -Algorithm MD5
-```
-
-Compare el resultado con el MD5 correspondiente.
-
-> [!TIP]
-> Si ambos valores coinciden exactamente, la imagen puede utilizarse para crear la memoria USB de instalación. Si no coinciden, elimine el archivo ISO y vuelva a descargarlo.
-
----
-
-### 4.5. Descarga de Rufus
-
-Rufus permite crear una memoria USB desde la cual puede iniciarse e instalarse un sistema operativo. Descárguelo desde: [https://rufus.ie/es/](https://rufus.ie/es/)
-
-Rufus puede ejecutarse directamente en Windows sin realizar un proceso tradicional de instalación.
-
----
-
-### 4.6. Creación de la memoria USB
-
-Conecte la memoria USB al computador y abra Rufus.
-
-> [!WARNING]
-> Todo el contenido almacenado actualmente en la memoria USB será eliminado.
-
-Realice el siguiente procedimiento:
-1. Seleccione la memoria USB en el campo **Dispositivo**.
-2. En **Selección de arranque**, seleccione la imagen ISO descargada.
-3. Utilice **GPT** como esquema de partición.
-4. Utilice **UEFI** como sistema de destino.
-5. Mantenga el sistema de archivos sugerido por Rufus.
-6. Mantenga el tamaño de clúster predeterminado.
-7. Presione **Empezar**.
-8. Confirme la eliminación del contenido de la memoria.
-
-Espere hasta que Rufus indique que el procedimiento ha finalizado.
-
----
-
-### 4.7. Arranque desde la memoria USB
-
-Reinicie el computador dejando conectada la memoria USB. Durante el inicio deberá acceder al menú de arranque (*Boot Menu*).
-
-Dependiendo del fabricante del computador, puede utilizarse alguna de estas teclas: `F2`, `F10`, `F11`, `F12`, `Esc` o `Del`.
-
-Seleccione la memoria USB como dispositivo de inicio.
-
----
-
-### 4.8. Instalación del sistema operativo
-
-Una vez iniciado Pop!_OS o Ubuntu desde la memoria USB, siga el asistente gráfico de instalación. Durante el procedimiento deberá seleccionar:
-* Idioma;
-* Distribución del teclado;
-* Disco de instalación;
-* Nombre de usuario;
-* Contraseña;
-* Zona horaria.
 
 > [!CAUTION]
-> **Equipos con Windows:**  
-> Si desea conservar Windows y configurar un sistema de arranque dual (*dual-boot*), no seleccione opciones que eliminen completamente el disco sin haber identificado previamente las particiones existentes.
+> Una ISR debe ser lo más breve y rápida posible. Nunca se deben incluir publicaciones ROS, retardos (`delay`), cálculos trigonométricos complejos ni escrituras en displays dentro de una ISR.
 
-Al finalizar la instalación, reinicie el computador y retire la memoria USB cuando el instalador lo indique.
+### 7.3. Timer Periódico ($T_s = 0.1\text{ s}$)
+El cálculo de velocidad requiere un intervalo de tiempo conocido:
 
----
+$$\text{Cada } T_s \longrightarrow \text{Leer contador protegido} \longrightarrow \text{Calcular } \omega \text{ y } n \longrightarrow \text{Publicar tópicos}$$
 
-## 5. Parte II: Preparación inicial de Linux
-
-### 5.1. Abrir la terminal
-
-En Pop!_OS puede abrirse mediante: `Super (Windows) + T`  
-En Ubuntu puede abrirse mediante: `Ctrl + Alt + T`
-
-> [!NOTE]
-> **Terminal:** La terminal permite interactuar con el sistema operativo mediante comandos. Durante el curso será utilizada para instalar software, compilar programas, ejecutar ROS 2 y diagnosticar el funcionamiento del sistema.
+$$T_s = 0.1\text{ s} \implies f_s = \frac{1}{T_s} = 10\text{ Hz}$$
 
 ---
 
-### 5.2. Actualizar el sistema
+## 8. Diseño de Interfaces (Contrato de Tópicos)
 
-Antes de instalar ROS 2 es recomendable actualizar el sistema operativo:
-
-```bash
-sudo apt update
-sudo apt upgrade -y
-```
-
-**¿Qué está ocurriendo?**  
-* `sudo apt update`: Consulta los repositorios configurados y actualiza la lista de paquetes disponibles.
-* `sudo apt upgrade -y`: Instala las versiones más recientes de los paquetes del sistema.
+| Tópico | Dirección (respecto al ESP32) | Tipo de Mensaje | Unidades | Propósito |
+| :--- | :---: | :---: | :---: | :--- |
+| `/pwm_input` | Entrada | `std_msgs/msg/Float32` | $\%$ | Comando de control aplicado al puente H ($-100.0$ a $100.0\,\%$) |
+| `/vel_rad_s` | Salida | `std_msgs/msg/Float32` | $\text{rad/s}$ | Velocidad angular estimada del eje |
+| `/vel_rpm` | Salida | `std_msgs/msg/Float32` | $\text{rpm}$ | Velocidad angular para monitoreo y visualización |
 
 ---
 
-### 5.3. Instalar herramientas básicas
+## 9. Lectura del Encoder y Estimación de Velocidad
 
-Instale las herramientas fundamentales de desarrollo:
+El encoder incremental no entrega velocidad directamente, sino transiciones de pulso:
 
-```bash
-sudo apt install -y git curl wget build-essential python3-pip
-```
+$$\boxed{\text{Movimiento mecánico} \longrightarrow \text{Pulsos A/B} \longrightarrow \text{Conteo de ticks} \longrightarrow \text{Estimación de velocidad}}$$
 
-* `git`: Gestión y clonación de repositorios de código.
-* `curl` y `wget`: Descarga de recursos y llaves criptográficas desde Internet.
-* `build-essential`: Compiladores GCC/G++ y herramientas de construcción C/C++.
-* `python3-pip`: Gestor de paquetes para Python 3.
+Definimos $N_{\text{rev}}$ como el número experimental de cuentas por revolución completa del eje de salida:
 
-Verifique la instalación:
-```bash
-git --version
-python3 --version
-pip3 --version
-```
+$$\Delta\theta_{\text{count}} = \frac{2\pi}{N_{\text{rev}}}\quad [\text{rad/tick}]$$
 
----
+Si durante un intervalo $\Delta t$ se registran $\Delta N[k] = N[k] - N[k-1]$ cuentas:
 
-## 6. Parte III: Instalación de ROS 2 Humble
+$$\boxed{\omega[k] = \frac{2\pi \Delta N[k]}{N_{\text{rev}} \Delta t}\quad [\text{rad/s}]}$$
 
-### 6.1. Verificar la versión del sistema
+$$\boxed{n[k] = \frac{60 \Delta N[k]}{N_{\text{rev}} \Delta t} = \omega[k] \left(\frac{60}{2\pi}\right)\quad [\text{rpm}]}$$
 
-Verifique que el sistema esté basado en Ubuntu 22.04:
-
-```bash
-lsb_release -a
-```
-
-La salida debe mostrar `Release: 22.04` / `Codename: jammy`.
+> [!WARNING]
+> Un error en el valor de $N_{\text{rev}}$ introduce un error sistemático de escala en toda la velocidad calculada y en los modelos identificados posteriormente.
 
 ---
 
-### 6.2. Configurar la codificación UTF-8
+## 10. Control del Puente H L298N
 
-ROS 2 requiere configuración regional compatible con UTF-8:
+El ESP32 conmuta las señales de control lógico y modulación:
 
-```bash
-sudo apt update
-sudo apt install -y locales
-sudo locale-gen en_US en_US.UTF-8
-sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-export LANG=en_US.UTF-8
-```
+$$\boxed{\text{ESP32 (LEDC)} \longrightarrow \text{Puente H L298N} \longrightarrow \text{Motor DC}}$$
 
-Verifique ejecutando `locale`. Debe mostrar `LANG=en_US.UTF-8`.
+| Entrada $u$ ($\%$) | `IN3` | `IN4` | PWM (`ENB`) | Comportamiento |
+| :---: | :---: | :---: | :---: | :--- |
+| $u > 0$ | `LOW` | `HIGH` | $PWM_{\text{raw}}$ | Giro en sentido positivo |
+| $u < 0$ | `HIGH` | `LOW` | $PWM_{\text{raw}}$ | Giro en sentido negativo |
+| $u = 0$ | `LOW` | `LOW` | $0$ | Motor detenido / frenado |
 
----
+Con resolución de 8 bits ($PWM_{\max} = 2^8 - 1 = 255$):
 
-### 6.3. Habilitar el repositorio Universe
-
-```bash
-sudo apt install -y software-properties-common
-sudo add-apt-repository universe
-sudo apt update
-```
+$$\boxed{PWM_{\text{raw}} = \text{int}\left(\frac{|u|}{100} \cdot 255\right)}$$
 
 ---
 
-### 6.4. Agregar el repositorio oficial de ROS 2
+## 11. Implementación del Nodo en el Repositorio
 
-Descargue la llave GPG de autenticación de paquetes:
+El código fuente del firmware se encuentra ubicado en el repositorio en:
 
-```bash
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-```
-
-Agregue el repositorio de ROS 2 a las fuentes de APT:
-
-```bash
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-```
-
-Actualice el índice de paquetes:
-
-```bash
-sudo apt update
-```
+* **Configuración del proyecto PlatformIO:** [`firmware/esp32_motor_step/platformio.ini`](../../firmware/esp32_motor_step/platformio.ini)
+* **Código fuente del firmware en C++:** [`firmware/esp32_motor_step/src/main.cpp`](../../firmware/esp32_motor_step/src/main.cpp)
 
 ---
 
-### 6.5. Actualizar el sistema e instalar ROS 2 Humble Desktop
+## 12. Integración y Validación Experimental con ROS 2
 
-```bash
-sudo apt upgrade -y
-sudo apt install -y ros-humble-desktop
-```
-
-Esta instalación incluye las herramientas principales de ROS 2, bibliotecas de comunicación (rclcpp, rclpy), demos y la herramienta de visualización **RViz2**.
-
----
-
-### 6.6. Instalar herramientas de desarrollo y colcon
-
-```bash
-sudo apt install -y ros-dev-tools python3-colcon-common-extensions
-```
-
-> [!NOTE]
-> `colcon` es la herramienta estándar utilizada para compilar workspaces y paquetes de ROS 2.
-
----
-
-### 6.7. Cargar el entorno de ROS 2
-
-Para cargar el entorno en la sesión actual:
+### 12.1. Iniciar el micro-ROS Agent en el PC
 
 ```bash
 source /opt/ros/humble/setup.bash
-```
-
-Verifique la variable de entorno:
-```bash
-echo $ROS_DISTRO
-# Debe retornar: humble
-```
-
-Para cargar ROS 2 automáticamente en cada nueva terminal:
-
-```bash
-echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
-## 7. Parte IV: Verificación de ROS 2
-
-### 7.1. Prueba Publisher – Subscriber
-
-Abra una terminal y ejecute el nodo publicador en C++:
-
-```bash
-ros2 run demo_nodes_cpp talker
-```
-
-En una segunda terminal, ejecute el nodo suscriptor en Python:
-
-```bash
-ros2 run demo_nodes_py listener
-```
-
-> [!TIP]
-> Si el nodo `talker` publica `Hello World: X` y `listener` los recibe en pantalla, la comunicación DDS básica de ROS 2 está funcionando correctamente. Presione `Ctrl + C` para finalizar.
-
----
-
-### 7.2. Simulación interactiva con Turtlesim
-
-Instale el simulador pedagógico:
-
-```bash
-sudo apt install -y ros-humble-turtlesim
-```
-
-Ejecute la ventana de simulación gráfica:
-
-```bash
-ros2 run turtlesim turtlesim_node
-```
-
-En otra terminal, ejecute el nodo de teleoperación por teclado:
-
-```bash
-ros2 run turtlesim turtle_teleop_key
-```
-
-En una tercera terminal, inspeccione los nodos y tópicos activos:
-
-```bash
-ros2 node list
-# Salida esperada: /teleop_turtle, /turtlesim
-
-ros2 topic list
-# Salida esperada: /turtle1/cmd_vel, /turtle1/pose, etc.
-
-ros2 topic echo /turtle1/pose
-```
-
----
-
-## 8. Parte V: Configuración de rosdep
-
-`rosdep` permite resolver e instalar automáticamente las dependencias del sistema requeridas por paquetes de ROS:
-
-```bash
-sudo rosdep init
-rosdep update
-```
-
-> [!NOTE]
-> Si `sudo rosdep init` indica que el archivo ya existe, ejecute únicamente `rosdep update`.
-
----
-
-## 9. Parte VI: Instalación y Configuración de micro-ROS
-
-### 9.1. Arquitectura micro-ROS
-
-```mermaid
-flowchart LR
-    subgraph PC["Computador (Ubuntu / Pop!_OS)"]
-        ROS["ROS 2 Humble"] <--> AGENT["micro-ROS Agent"]
-    end
-    subgraph MCU["Hardware Embebido"]
-        AGENT <-->|Serial / WiFi| ESP["ESP32 (Firmware micro-ROS)"]
-    end
-```
-
-> [!NOTE]
-> El **micro-ROS Agent** actúa como puente intermediario entre el grafo computacional de ROS 2 en el PC y los nodos ligeros ejecutados en microcontroladores (como el firmware del ESP32 ubicado en [`firmware/esp32_motor_step/`](../../firmware/esp32_motor_step)).
-
----
-
-### 9.2. Creación y Compilación del Workspace de micro-ROS
-
-Cree el espacio de trabajo:
-
-```bash
-cd ~
-mkdir -p microros_ws/src
-cd microros_ws
-git clone -b humble https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup
-```
-
-Instale las dependencias y compile:
-
-```bash
-sudo apt update
-rosdep update
-rosdep install --from-paths src --ignore-src -y
-colcon build
-source install/local_setup.bash
-```
-
----
-
-### 9.3. Creación y Compilación del micro-ROS Agent
-
-Descargue y compile el agente:
-
-```bash
-ros2 run micro_ros_setup create_agent_ws.sh
-ros2 run micro_ros_setup build_agent.sh
-source install/local_setup.bash
-```
-
-Verifique la disponibilidad del comando:
-
-```bash
-ros2 run micro_ros_agent micro_ros_agent --help
-```
-
-Automatice el sourcing en su `.bashrc`:
-
-```bash
-echo "source ~/microros_ws/install/local_setup.bash" >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
-## 10. Parte VII: Ejecución del micro-ROS Agent
-
-### 10.1. Modo Wi-Fi (UDP)
-```bash
-ros2 run micro_ros_agent micro_ros_agent udp4 --port 8888
-```
-
-### 10.2. Modo Serial (USB - 115200 baudios)
-Identifique el puerto USB del microcontrolador conectándolo al PC:
-```bash
-ls /dev/ttyUSB* # o ls /dev/ttyACM*
-```
-
-Ejecute el agente indicando el puerto correspondiente:
-```bash
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 ```
 
-#### Permisos de Acceso al Puerto Serial:
-Si aparece un error de permisos en el puerto, agregue su usuario al grupo `dialout`:
+### 12.2. Verificar Grafo de Nodos y Tópicos
+
 ```bash
-sudo usermod -a -G dialout $USER
+# Comprobar nodo activo
+ros2 node list
+# Debe retornar: /motor_step_node
+
+# Comprobar tópicos
+ros2 topic list
+# Debe incluir: /pwm_input, /vel_rad_s, /vel_rpm
+
+# Comprobar frecuencia de publicación
+ros2 topic hz /vel_rad_s
+# Debe reportar una tasa promedio estable de ~10 Hz
 ```
-*(Es necesario cerrar sesión o reiniciar para aplicar el cambio).*
+
+### 12.3. Accionamiento de Prueba
+
+```bash
+# Aplicar 30 % PWM
+ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: 30.0}" --once
+
+# Detener el motor
+ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: 0.0}" --once
+```
 
 ---
 
-## 11. Parte VIII: Diagnóstico y Solución de Problemas
+## 13. Nodos ROS 2 en el Computador
 
-| Error común | Causa | Solución |
+La arquitectura contempla nodos en Python dentro del paquete ROS 2 del repositorio:
+
+1. **Monitor gráfico en tiempo real:**
+   * Archivo: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py)
+   * Tópico suscrito: `/vel_rad_s` o `/vel_rpm`.
+
+2. **Registrador de datos a CSV:**
+   * Archivo: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py)
+   * Tópicos suscritos: `/vel_rad_s` y `/pwm_input`.
+   * Estructura generada: `Time (s)`, `Angular Velocity (rad/s)`, `PWM (%)`.
+
+---
+
+## 14. Diagnóstico Básico por Capas
+
+| Síntoma | Causa Probable | Verificación / Solución |
 | :--- | :--- | :--- |
-| `ros2: command not found` | Entorno no cargado | Ejecutar `source /opt/ros/humble/setup.bash`. |
-| `colcon: command not found` | Falta paquete de colcon | Ejecutar `sudo apt install -y python3-colcon-common-extensions`. |
-| No aparece `/dev/ttyUSB0` | Asignación en `/dev/ttyACM0` o driver CH340/CP2102 | Ejecutar `ls /dev/ttyACM*` o `lsusb` para revisar conexión física. |
-| Permiso denegado en puerto serial | Usuario fuera de `dialout` | Ejecutar `sudo usermod -a -G dialout $USER` y reiniciar sesión. |
-| Workspace no reconoce nodos | Falta sourcing local | Ejecutar `source ~/microros_ws/install/local_setup.bash`. |
-
-Para un diagnóstico completo del sistema ROS 2:
-```bash
-ros2 doctor --report
-```
+| El nodo no aparece en `ros2 node list` | Fallo de conexión serie o Agent no iniciado | Verificar cable USB, puerto `/dev/ttyUSB0` y permisos `chmod 666 /dev/ttyUSB0`. |
+| Nodo visible pero velocidad siempre en cero | Encoder sin alimentación o pines invertidos | Revisar conexión de 3.3V/5V del encoder, interrupciones en `GPIO 32/33`. |
+| El motor no gira ante comando PWM | Alimentación de potencia o puente H deshabilitado | Comprobar fuente de 12V externa, masa común con ESP32 y jumper de `ENB`. |
+| Velocidad calculada errónea o con escala incorrecta | $N_{\text{rev}}$ no coincide con la calibración | Ejecutar la rutina de calibración de pulsos por revolución. |
+| El signo de velocidad no coincide con el sentido de giro | Canales A y B invertidos físicamente o en código | Intercambiar los pines de definición `ENCA` y `ENCB` en el firmware. |
 
 ---
 
-## 12. Lista de Verificación Final
+## 15. Actividades de Laboratorio
 
-- [x] Linux 22.04 inicia correctamente.
-- [x] El sistema operativo se encuentra actualizado.
-- [x] Git y Python 3 instalados y operativos.
-- [x] ROS 2 Humble instalado (`echo $ROS_DISTRO` reporta `humble`).
-- [x] Ejemplo `talker` / `listener` funciona.
-- [x] Simulador `turtlesim` teleoperable por teclado.
-- [x] Comandos `ros2 node list` y `ros2 topic list` funcionales.
-- [x] Herramientas `colcon` y `rosdep` instaladas.
-- [x] Workspace `~/microros_ws` compilado con éxito.
-- [x] `micro_ros_agent` ejecutable por Serial y UDP.
-- [x] Puerto serial del ESP32 reconocido por Linux.
+### Actividad 1: Diseño de Arquitectura
+Dibujar el diagrama de bloques del sistema distribuido identificando claramente la frontera entre el microcontrolador (ESP32) y el computador, sus respectivos nodos, tópicos y mensajes.
+
+### Actividad 2: Calibración del Encoder
+Determinar experimentalmente $N_{\text{rev}}$ girando el eje una revolución completa y promediando múltiples mediciones.
+
+### Actividad 3: Integración y Verificación por Capas
+Validar en secuencia: Agent $\rightarrow$ Nodo $\rightarrow$ Tópicos $\rightarrow$ Encoder manual $\rightarrow$ Accionamiento con PWM.
+
+### Actividad 4: Prueba Experimental de Escalón
+Aplicar un escalón de PWM, almacenar el archivo CSV resultante y analizar el régimen transitorio y el régimen permanente de velocidad angular.
 
 ---
 
-## 13. Relación con el Repositorio de Control de Motor DC
+## 16. Síntesis y Conclusiones
 
-El entorno configurado en esta guía es la base computacional sobre la cual se ejecutan los paquetes de este repositorio:
-* **Firmware del ESP32:** [`firmware/esp32_motor_step/`](../../firmware/esp32_motor_step/) (adquisición de encoder a 10 Hz, PWM por puente H y nodo micro-ROS).
-* **Workspace ROS 2:** [`ros2_ws/`](../../ros2_ws/) (paquetes `dc_motor_bringup`, `dc_motor_experiments` y `dc_motor_control`).
-* **Etapas experimentales:** [`stage_00_system_design/`](../../stage_00_system_design/) a [`stage_05_closed_loop_control/`](../../stage_05_closed_loop_control/).
+$$\boxed{\text{Comprender la Planta} \longrightarrow \text{Diseñar Interfaces} \longrightarrow \text{Implementar Firmware} \longrightarrow \text{Integrar con ROS 2} \longrightarrow \text{Validar Experimentalmente}}$$
+
+El nodo `motor_step_node` implementado en el ESP32 constituye el núcleo de instrumentación y actuación sobre el cual se construirán las siguientes fases del proyecto: la identificación experimental paramétrica (FOP / FOPDT) y el diseño e implementación de controladores en lazo cerrado.

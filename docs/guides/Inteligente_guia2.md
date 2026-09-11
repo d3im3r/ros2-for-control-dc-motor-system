@@ -1,427 +1,346 @@
-# Guía 2: Rotaciones y Transformaciones en el Plano
+# Guía 2: Identificación Experimental Mediante Prueba Escalón
 
-**Curso:** Robótica del Servicio (`ING 01335`)  
-**Facultad:** Facultad de Ingeniería  
-**Institución:** Politécnico Colombiano Jaime Isaza Cadavid  
-**Docente:** Deimer Miranda Montoya, MSc.(c). (`deimer_miranda91162@elpoli.edu.co`)  
-**Periodo Académico:** 2026-2  
+<div align="center">
 
----
+**Asignatura:** Control Inteligente (`ING01343-ING278`)  
+**Institución:** Politécnico Colombiano Jaime Isaza Cadavid — Facultad de Ingeniería  
+**Docente:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
+**Período Académico:** 2026-2  
+**Modalidad:** Trabajo práctico guiado (Individual o parejas)  
+**Entregables:** Curvas de reacción experimentales, archivos CSV registrados y modelos matemáticos FOP y FOPDT identificados
 
-| **Tiempo Estimado** | **Modalidad** | **Entregables** |
-| :---: | :---: | :---: |
-| 3 a 4 horas | Trabajo autónomo guiado e individual | Desarrollo matemático, validación con Python y representación gráfica |
-
----
-
-## 1. Propósito de la guía
-
-Esta guía tiene como propósito fortalecer la comprensión matemática y geométrica de las rotaciones bidimensionales y de las transformaciones entre sistemas de referencia.
-
-Estos conceptos permiten describir cómo cambia la representación de un punto cuando se modifica la orientación del sistema desde el cual se observa.
-
-Al finalizar las actividades propuestas, el estudiante estará en capacidad de:
-
-* Relacionar coordenadas cartesianas y polares;
-* Interpretar geométricamente una rotación;
-* Construir y utilizar la matriz de rotación bidimensional;
-* Comprobar que una rotación conserva la magnitud de un vector;
-* Interpretar las propiedades de ortogonalidad e inversa de $R(\theta)$;
-* Realizar composiciones de rotaciones;
-* Transformar puntos desde el sistema local del robot al sistema global;
-* Realizar la transformación inversa desde el sistema global al local;
-* Validar los resultados mediante NumPy;
-* Visualizar rotaciones y sistemas de referencia mediante Matplotlib.
-
-> [!NOTE]
-> **Idea Clave:**  
-> La herramienta computacional se utilizará para comprobar y visualizar los resultados. El punto de partida continuará siendo el desarrollo matemático y su interpretación geométrica.
+</div>
 
 ---
 
-## 2. Representaciones de un punto en el plano
+## 1. Introducción
 
-### 2.1. Coordenadas cartesianas
+En la **Guía 1** se construyó y validó el nodo micro-ROS `motor_step_node`, capaz de recibir una referencia de PWM, accionar el motor DC, estimar su velocidad angular mediante un encoder incremental y publicar dicha medición hacia ROS 2. La calibración experimental realizada sobre el montaje estableció:
 
-En un plano bidimensional, un punto puede representarse mediante el par ordenado $P=(x,y)$ o mediante un vector columna de coordenadas:
+$$\boxed{N_{\mathrm{rev}} = 960\ \text{ticks/rev}}$$
 
-$$\mathbf{p} = \begin{bmatrix} x \\ y \end{bmatrix}$$
+En esta segunda guía se utilizará el sistema instrumentado para realizar **identificación paramétrica experimental en lazo abierto**. El procedimiento se basará en la respuesta del motor ante entradas escalón de PWM y en el análisis de su curva de reacción temporal. A partir de los datos entrada-salida se propondrán y compararán dos modelos de aproximación dinámica:
 
-Las componentes $x$ y $y$ indican las proyecciones ortogonales del punto sobre los ejes del sistema de referencia.
+1. **Modelo de Primer Orden Puro (FOP — *First Order Plus*):**
+   $$G_{\mathrm{FOP}}(s) = \frac{K}{\tau s + 1}$$
 
-```mermaid
-flowchart TB
-    subgraph PlanoCartesiano["Sistema Global {G}"]
-        direction LR
-        O["Origen (0,0)"] -->|"Proyección horizontal x"| X["Eje X"]
-        O -->|"Proyección vertical y"| Y["Eje Y"]
-        O -->|"Vector posición p"| P["P = (x, y)"]
-    end
-```
+2. **Modelo de Primer Orden con Tiempo Muerto (FOPDT — *First Order Plus Dead Time*):**
+   $$G_{\mathrm{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}$$
 
-> [!NOTE]
-> Las coordenadas de un punto siempre están asociadas a un sistema de referencia específico. El mismo punto físico posee coordenadas diferentes cuando se observa desde otro marco de referencia.
+> [!TIP]
+> **Enfoque Metodológico:**
+> La identificación experimental busca obtener un modelo matemático simplificado y representativo que capture la dinámica dominante del sistema dentro del rango operativo real, permitiendo diseñar posteriormente controladores eficaces.
 
 ---
 
-### 2.2. Coordenadas polares
+### 1.1. Resultados de Aprendizaje
 
-El mismo punto físico puede describirse mediante la distancia al origen $\rho$ y su ángulo polar $\alpha$:
+Al finalizar la guía, el estudiante estará en capacidad de:
 
-$$P = (\rho, \alpha)$$
-
-donde:
-* $\rho$: Distancia euclidiana desde el origen hasta el punto ($\rho \ge 0$).
-* $\alpha$: Ángulo de orientación respecto al eje positivo $X$.
-
-**Relaciones de transformación de Cartesianas a Polares:**
-
-$$\rho = \sqrt{x^2 + y^2}$$
-
-$$\alpha = \operatorname{atan2}(y, x)$$
-
-**Relaciones de transformación de Polares a Cartesianas:**
-
-$$x = \rho \cos\alpha$$
-
-$$y = \rho \sin\alpha$$
-
-Por tanto:
-
-$$\mathbf{p} = \begin{bmatrix} \rho \cos\alpha \\ \rho \sin\alpha \end{bmatrix}$$
+1. Realizar pruebas escalón repetibles y automatizadas sobre el motor DC.
+2. Registrar simultáneamente la señal de entrada PWM y la velocidad angular en archivos CSV estructurados.
+3. Interpretar la curva de reacción experimental del sistema físico.
+4. Extraer el valor inicial $\omega_0$ y el régimen permanente $\omega_{ss}$.
+5. Calcular la ganancia estática $K$ del sistema.
+6. Estimar la constante de tiempo $\tau$ mediante el criterio del $63.2\,\%$ de la respuesta total.
+7. Estimar el retardo aparente $\theta$ cuando sea observable en el transitorio.
+8. Construir modelos de transferencia FOP y FOPDT a partir de datos reales.
+9. Comparar los parámetros obtenidos en diferentes puntos de operación ($30\,\%$, $45\,\%$ y $60\,\%$ PWM).
+10. Evaluar si un único modelo lineal representa adecuadamente la planta o si existen efectos no lineales relevantes.
 
 ---
 
-### 2.3. Ejemplo 1: Conversión entre representaciones
+## 2. Punto de Partida: Sistema Instrumentado
 
-Considere el punto cartesiano $P = (-4, 3)$.
+Se parte del sistema de instrumentación validado con la siguiente arquitectura de comunicación:
 
-1. **Magnitud:**
-   $$\rho = \sqrt{(-4)^2 + 3^2} = \sqrt{16 + 9} = \sqrt{25} = 5$$
+| Tópico | Dirección | Tipo de Mensaje | Descripción |
+| :--- | :---: | :---: | :--- |
+| `/pwm_input` | PC $\rightarrow$ ESP32 | `std_msgs/msg/Float32` | Referencia PWM en porcentaje $[-100.0, 100.0]\,\%$ |
+| `/vel_rad_s` | ESP32 $\rightarrow$ PC | `std_msgs/msg/Float32` | Velocidad angular en $\text{rad/s}$ ($T_s = 0.1\text{ s}$) |
+| `/vel_rpm` | ESP32 $\rightarrow$ PC | `std_msgs/msg/Float32` | Velocidad angular en $\text{rpm}$ |
 
-2. **Dirección angular:**
-   $$\alpha = \operatorname{atan2}(3, -4) \approx 143.13^\circ \approx 2.498\text{ rad}$$
+$$\omega[k] = \frac{2\pi \Delta N[k]}{960 \Delta t}\quad [\text{rad/s}]$$
 
-3. **Representación polar:**
-   $$P = (5, 143.13^\circ)$$
-
-**Comprobación inversa:**
-$$x = 5 \cos(143.13^\circ) \approx 5 (-0.8) = -4.0$$
-$$y = 5 \sin(143.13^\circ) \approx 5 (0.6) = 3.0$$
+> [!CAUTION]
+> Antes de iniciar las pruebas de identificación, verifique que la medición de velocidad angular responda sin retardos espurios y que el motor se detenga completamente al enviar `0.0` a `/pwm_input`.
 
 ---
 
-## 3. Rotaciones en el plano bidimensional
+## 3. Fundamento: Identificación Experimental de la Planta
 
-Considere un vector $\mathbf{p} = \begin{bmatrix} \rho \cos\alpha \\ \rho \sin\alpha \end{bmatrix}$. Si se rota un ángulo $\theta$ en sentido antihorario respecto al origen:
+La identificación experimental modela la relación entrada-salida considerando:
 
-* La nueva dirección angular es: $\alpha' = \alpha + \theta$
-* La magnitud se conserva invariable: $\rho' = \rho$
+* **Entrada:** $u(t) = \text{PWM aplicado } [\%]$
+* **Salida:** $\omega(t) = \text{Velocidad angular } [\text{rad/s}]$
 
-El nuevo vector rotado $\mathbf{p}'$ se expresa como:
-
-$$\mathbf{p}' = \begin{bmatrix} \rho \cos(\alpha + \theta) \\ \rho \sin(\alpha + \theta) \end{bmatrix}$$
-
----
-
-## 4. Deducción y construcción de la matriz de rotación $R(\theta)$
-
-Aplicando las identidades trigonométricas de suma de ángulos:
-
-$$\cos(\alpha + \theta) = \cos\alpha \cos\theta - \sin\alpha \sin\theta$$
-$$\sin(\alpha + \theta) = \sin\alpha \cos\theta + \cos\alpha \sin\theta$$
-
-Multiplicando por la magnitud $\rho$ y reconociendo que $x = \rho\cos\alpha$ y $y = \rho\sin\alpha$:
-
-$$x' = \rho \cos(\alpha + \theta) = (\rho \cos\alpha)\cos\theta - (\rho \sin\alpha)\sin\theta = x\cos\theta - y\sin\theta$$
-$$y' = \rho \sin(\alpha + \theta) = (\rho \cos\alpha)\sin\theta + (\rho \sin\alpha)\cos\theta = x\sin\theta + y\cos\theta$$
-
-En forma matricial compacta:
-
-$$\begin{bmatrix} x' \\ y' \end{bmatrix} = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix} \begin{bmatrix} x \\ y \end{bmatrix}$$
-
-Se define la **Matriz de Rotación 2D** $R(\theta)$:
-
-$$R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix}$$
-
-Operación de rotación directa:
-
-$$\mathbf{p}' = R(\theta)\mathbf{p}$$
-
----
-
-## 5. Ejemplo 2: Rotación de un vector
-
-Dado el vector $\mathbf{p} = \begin{bmatrix} 4 \\ 2 \end{bmatrix}$ y un ángulo de rotación $\theta = 60^\circ$:
-
-$$R(60^\circ) = \begin{bmatrix} \cos 60^\circ & -\sin 60^\circ \\ \sin 60^\circ & \cos 60^\circ \end{bmatrix} = \begin{bmatrix} \frac{1}{2} & -\frac{\sqrt{3}}{2} \\ \frac{\sqrt{3}}{2} & \frac{1}{2} \end{bmatrix}$$
-
-$$\mathbf{p}' = \begin{bmatrix} \frac{1}{2} & -\frac{\sqrt{3}}{2} \\ \frac{\sqrt{3}}{2} & \frac{1}{2} \end{bmatrix} \begin{bmatrix} 4 \\ 2 \end{bmatrix} = \begin{bmatrix} 2 - \sqrt{3} \\ 2\sqrt{3} + 1 \end{bmatrix} \approx \begin{bmatrix} 0.268 \\ 4.464 \end{bmatrix}$$
-
-### Comprobación de la conservación de la norma:
-* Magnitud inicial: $\|\mathbf{p}\| = \sqrt{4^2 + 2^2} = \sqrt{20} \approx 4.472$
-* Magnitud final: $\|\mathbf{p}'\| = \sqrt{(0.268)^2 + (4.464)^2} \approx \sqrt{0.0718 + 19.927} \approx 4.472$
-* Se verifica rigurosamente: $\|\mathbf{p}'\| = \|\mathbf{p}\|$.
-
----
-
-## 6. Propiedades algebraicas y geométricas de $R(\theta)$
-
-1. **Rotación nula:**
-   $$R(0) = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} = I \implies R(0)\mathbf{p} = \mathbf{p}$$
-
-2. **Rotación inversa y simetría:**
-   $$R^{-1}(\theta) = R(-\theta) = \begin{bmatrix} \cos(-\theta) & -\sin(-\theta) \\ \sin(-\theta) & \cos(-\theta) \end{bmatrix} = \begin{bmatrix} \cos\theta & \sin\theta \\ -\sin\theta & \cos\theta \end{bmatrix} = R^T(\theta)$$
-
-3. **Ortogonalidad ($R \in SO(2)$):**
-   $$R^T R = R R^T = I \iff R^{-1} = R^T$$
-
-4. **Demostración de invariancia de la norma:**
-   $$\|\mathbf{p}'\|^2 = (R\mathbf{p})^T (R\mathbf{p}) = \mathbf{p}^T (R^T R) \mathbf{p} = \mathbf{p}^T I \mathbf{p} = \mathbf{p}^T \mathbf{p} = \|\mathbf{p}\|^2$$
-
-5. **Determinante unitario:**
-   $$\det(R) = (\cos\theta)(\cos\theta) - (-\sin\theta)(\sin\theta) = \cos^2\theta + \sin^2\theta = 1$$
-
----
-
-## 7. Composición de rotaciones sucesivas
-
-Para dos rotaciones sucesivas $\theta_1$ seguida de $\theta_2$:
-
-$$\mathbf{p}_1 = R(\theta_1)\mathbf{p}, \qquad \mathbf{p}_2 = R(\theta_2)\mathbf{p}_1 = R(\theta_2)R(\theta_1)\mathbf{p}$$
-
-Para rotaciones en el plano bidimensional (conmutativas en $SO(2)$):
-
-$$R(\theta_2)R(\theta_1) = R(\theta_1 + \theta_2)$$
-
-### Ejemplo 3:
-Si $\theta_1 = 20^\circ$ y $\theta_2 = -35^\circ$, la rotación neta resultante es $\theta_T = 20^\circ - 35^\circ = -15^\circ$, por lo cual $R(-35^\circ)R(20^\circ) = R(-15^\circ)$.
-
----
-
-## 8. Transformaciones entre Sistemas de Referencia (Marco Global vs Marco Local)
-
-En robótica móvil se definen dos marcos:
-* $\{G\}$: Sistema de referencia global inercial fijo.
-* $\{R\}$: Sistema de referencia local móvil solidario al robot.
-
-La pose del robot en el plano se describe mediante el vector de estado:
-
-$${}^{G}\mathbf{x}_R = \begin{bmatrix} x_R \\ y_R \\ \theta \end{bmatrix}$$
-
-donde ${}^{G}\mathbf{p}_R = \begin{bmatrix} x_R \\ y_R \end{bmatrix}$ es la posición global del robot y $\theta$ es la orientación del eje local $X_R$ respecto a $X_G$.
+$$\boxed{G_{\mathrm{exp}}(s) = \frac{\Omega(s)}{U_{\mathrm{PWM}}(s)}}$$
 
 ```mermaid
 flowchart LR
-    subgraph GlobalFrame["Marco Global {G}"]
-        direction TB
-        OG["Origen Global (0,0)"]
-    end
-    subgraph LocalFrame["Marco Local del Robot {R}"]
-        direction TB
-        OR["Centro del Robot (x_R, y_R)"]
-        XR["Eje X_R (Orientación theta)"]
-        YR["Eje Y_R (Perpendicular)"]
-    end
-    OG -->|"Traslación p_R"| OR
-    OR -->|"Rotación R(theta)"| XR
+    STEP["Prueba Escalón<br>(Launch automatizado)"] --> DATA["Adquisición<br>(u(t), ω(t))"]
+    DATA --> CURVE["Curva de Reacción<br>(Gráfica temporal)"]
+    CURVE --> STRUCT["Estructura<br>(FOP / FOPDT)"]
+    STRUCT --> PARAM["Ajuste de Parámetros<br>(K, τ, θ)"]
+    PARAM --> MODEL["Modelo Matemático<br>G(s)"]
 ```
-
----
-
-### 8.1. Transformación Local a Global (Directa)
-
-Si un sensor montado en el robot detecta un objeto en coordenadas locales ${}^{R}\mathbf{p} = \begin{bmatrix} x^p_R \\ y^p_R \end{bmatrix}$, sus coordenadas globales ${}^{G}\mathbf{p}$ se calculan como:
-
-$${}^{G}\mathbf{p} = {}^{G}\mathbf{p}_R + R(\theta) {}^{R}\mathbf{p}$$
-
----
-
-### 8.2. Ejemplo 4: Objeto detectado en marco local
-
-* Pose del robot: ${}^{G}\mathbf{p}_R = \begin{bmatrix} -1 \\ 2 \end{bmatrix}, \quad \theta = 30^\circ$
-* Coordenadas locales del objeto: ${}^{R}\mathbf{p} = \begin{bmatrix} 4 \\ -1 \end{bmatrix}$
-
-**Cálculo:**
-1. Rotación del vector local:
-   $$R(30^\circ) {}^{R}\mathbf{p} = \begin{bmatrix} \frac{\sqrt{3}}{2} & -\frac{1}{2} \\ \frac{1}{2} & \frac{\sqrt{3}}{2} \end{bmatrix} \begin{bmatrix} 4 \\ -1 \end{bmatrix} = \begin{bmatrix} 2\sqrt{3} + 0.5 \\ 2 - \frac{\sqrt{3}}{2} \end{bmatrix} \approx \begin{bmatrix} 3.964 \\ 1.134 \end{bmatrix}$$
-
-2. Adición de la traslación del robot:
-   $${}^{G}\mathbf{p} = \begin{bmatrix} -1 \\ 2 \end{bmatrix} + \begin{bmatrix} 3.964 \\ 1.134 \end{bmatrix} = \begin{bmatrix} 2.964 \\ 3.134 \end{bmatrix}$$
-
----
-
-### 8.3. Transformación Global a Local (Inversa)
-
-Dadas las coordenadas globales ${}^{G}\mathbf{p}$ de un objetivo y la pose actual del robot:
-
-$${}^{R}\mathbf{p} = R^T(\theta) \left( {}^{G}\mathbf{p} - {}^{G}\mathbf{p}_R \right)$$
-
----
-
-### 8.4. Ejemplo 5: Transformación Inversa
-
-* Pose del robot: ${}^{G}\mathbf{p}_R = \begin{bmatrix} 2 \\ -1 \end{bmatrix}, \quad \theta = -90^\circ$
-* Objetivo global: ${}^{G}\mathbf{p} = \begin{bmatrix} 5 \\ 3 \end{bmatrix}$
-
-**Cálculo:**
-1. Vector traslación relativa:
-   $${}^{G}\mathbf{p} - {}^{G}\mathbf{p}_R = \begin{bmatrix} 5 \\ 3 \end{bmatrix} - \begin{bmatrix} 2 \\ -1 \end{bmatrix} = \begin{bmatrix} 3 \\ 4 \end{bmatrix}$$
-
-2. Aplicación de la matriz transpuesta $R^T(-90^\circ) = R(90^\circ)$:
-   $${}^{R}\mathbf{p} = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix} \begin{bmatrix} 3 \\ 4 \end{bmatrix} = \begin{bmatrix} -4 \\ 3 \end{bmatrix}$$
-
----
-
-## 9. Validación y Procesamiento en Python con NumPy
 
 > [!NOTE]
-> **Ubicación en el Repositorio:**  
-> Estos algoritmos de cálculo matricial y cinemático se utilizan en los paquetes de control y modelado del workspace: [`ros2_ws/src/dc_motor_control/`](../../ros2_ws/src/dc_motor_control/) y en los análisis paramétricos de [`stage_02_system_identification/analysis/`](../../stage_02_system_identification/analysis/).
+> **Curva de Reacción:**
+> Es la respuesta temporal medida de la velocidad angular del motor frente a un cambio tipo escalón en la entrada PWM. Su perfil permite estimar las constantes dinámicas y la ganancia del proceso.
 
-### 9.1. Script de Transformaciones Matriciales 2D
+---
 
-```python
-import numpy as np
-import matplotlib.pyplot as plt
+## 4. Estructuras de Modelado: FOP vs. FOPDT
 
-# 1. Definición del punto original y ángulo de rotación
-p = np.array([2.0, -5.0])
-theta_deg = 25.0
-theta = np.deg2rad(theta_deg)
+Aunque el motor DC posee una dinámica electromecánica de segundo orden (dinámica eléctrica por inductancia de armadura + dinámica mecánica por inercia y fricción), la constante de tiempo eléctrica $\tau_e = L_a/R_a$ es órdenes de magnitud más rápida que la constante mecánica $\tau_m = J/b$. Por tanto, el comportamiento observable de velocidad se modela con alta fidelidad como un sistema de primer orden:
 
-# 2. Construcción de la matriz de rotación
-R = np.array([
-    [np.cos(theta), -np.sin(theta)],
-    [np.sin(theta),  np.cos(theta)]
-])
+* **Modelo FOP (Primer Orden Puro):**
+  $$\boxed{G_{\mathrm{FOP}}(s) = \frac{K}{\tau s + 1}}$$
+  * $K$: Ganancia estática en $\left[\frac{\text{rad/s}}{\%\,\text{PWM}}\right]$.
+  * $\tau$: Constante de tiempo en $[\text{s}]$.
 
-# 3. Aplicación del producto matricial (@)
-p_rotado = R @ p
+* **Modelo FOPDT (Primer Orden con Retardo Aparente):**
+  $$\boxed{G_{\mathrm{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}}$$
+  * $\theta$: Retardo o tiempo muerto aparente en $[\text{s}]$.
 
-# 4. Verificación de propiedades
-is_orthogonal = np.allclose(R.T @ R, np.eye(2))
-det_R = np.linalg.det(R)
-norma_original = np.linalg.norm(p)
-norma_rotada = np.linalg.norm(p_rotado)
+---
 
-print("Matriz R(25°):\n", R)
-print(f"Vector original: {p}, Norma: {norma_original:.4f}")
-print(f"Vector rotado:   {p_rotado}, Norma: {norma_rotada:.4f}")
-print(f"¿Es ortogonal (R.T @ R == I)?: {is_orthogonal}")
-print(f"Determinante det(R): {det_R:.6f}")
+## 5. Arquitectura ROS 2 para la Prueba Escalón
+
+```mermaid
+flowchart TD
+    PWM["/pwm_input<br>(Float32, %)"] --> MOTOR(["motor_step_node<br>(ESP32 / micro-ROS)"])
+    MOTOR --> RAD["/vel_rad_s<br>(Float32, rad/s)"]
+    MOTOR --> RPM["/vel_rpm<br>(Float32, rpm)"]
+
+    PWM -.-> DB(["step_response_DB<br>(data_logger.py)"])
+    RAD --> DB
+    RAD --> GRAPH(["vel_ang_motor<br>(velocity_monitor.py)"])
 ```
 
 ---
 
-### 9.2. Script de Visualización Gráfica de Rotaciones
+## 6. Scripts de Adquisición y Visualización en ROS 2
 
-```python
-plt.figure(figsize=(8, 8))
-plt.quiver(0, 0, p[0], p[1], angles="xy", scale_units="xy", scale=1, color="royalblue", label=f"Original $\mathbf{{p}}$ {p}")
-plt.quiver(0, 0, p_rotado[0], p_rotado[1], angles="xy", scale_units="xy", scale=1, color="forestgreen", label=f"Rotado $\mathbf{{p}}'$ ({theta_deg}°)")
+Los nodos ejecutables están disponibles en el paquete `dc_motor_experiments`:
 
-plt.axhline(0, color="gray", linestyle="--", linewidth=0.8)
-plt.axvline(0, color="gray", linestyle="--", linewidth=0.8)
-plt.xlim(-7, 7)
-plt.ylim(-7, 7)
-plt.gca().set_aspect("equal", adjustable="box")
-plt.grid(True)
-plt.legend(loc="upper right")
-plt.title("Transformación por Rotación en $SO(2)$")
-plt.show()
+### 6.1. Registrador de Datos a CSV (`data_logger.py`)
+* Ubicación: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py)
+* Genera archivos con nombre: `motor_step_response_YYYYMMDD_HHMMSS.csv`
+
+```csv
+Time (s),Angular Velocity (rad/s),PWM (%)
+0.100,0.000000,0.000
+0.200,0.000000,0.000
+...
+1.100,2.152431,45.000
+...
+36.100,45.892100,0.000
+```
+
+### 6.2. Visualizador en Tiempo Real (`velocity_monitor.py`)
+* Ubicación: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py)
+* Grafica dinámicamente $\omega(t)$ vs $t$ con Matplotlib a $10\text{ Hz}$.
+
+---
+
+## 7. Diseño de las Pruebas Experimentales
+
+Se realizarán tres ensayos independientes para caracterizar la planta a diferentes niveles de excitación:
+
+| Ensayo | $u_0$ ($\%$) | $u_{\text{step}}$ ($\%$) | Duración Total | Muestras ($10\text{ Hz}$) |
+| :---: | :---: | :---: | :---: | :---: |
+| **1** | $0\,\%$ | $30\,\%$ | $40.0\text{ s}$ | $400$ muestras |
+| **2** | $0\,\%$ | $45\,\%$ | $40.0\text{ s}$ | $400$ muestras |
+| **3** | $0\,\%$ | $60\,\%$ | $40.0\text{ s}$ | $400$ muestras |
+
+---
+
+## 8. Automatización de la Prueba Mediante Launch File
+
+Para garantizar que todas las pruebas tengan exactamente la misma secuencia temporal y sean comparables, se utiliza el launch file:
+
+* Ubicación del Launch en el repositorio: [`ros2_ws/src/dc_motor_bringup/launch/stage_02_identification.launch.py`](../../ros2_ws/src/dc_motor_bringup/launch/stage_02_identification.launch.py)
+
+### Perfil Temporal del Ensayo:
+
+```text
+  PWM (%)
+     ^
+     |              +-----------------------------------+
+step |              |                                   |
+     |              |         Escalón (35.0 s)          |
+     |              |                                   |
+  0% +--------------+                                   +---------------> Tiempo (s)
+     0             1.0                                 36.0           40.0
+        (Reposo 1s)                                      (Reposo fin 4s)
+```
+
+1. **Reposo Inicial ($0.0\text{ s} - 1.0\text{ s}$):** Entrada en $0\,\%$ para registrar la condición inicial $\omega_0$.
+2. **Escalón Activo ($1.0\text{ s} - 36.0\text{ s}$):** Aplicación de $u_{\text{step}}\,\%$ durante $35.0\text{ s}$ para alcanzar régimen permanente.
+3. **Reposo Final ($36.0\text{ s} - 40.0\text{ s}$):** Regreso a $0\,\%$ para frenado seguro.
+
+### Ejecución de los Ensayos:
+
+```bash
+# Compilar y cargar el workspace
+cd ~/ros2-for-control-dc-motor-system/ros2_ws
+colcon build --symlink-install
+source install/setup.bash
+
+# Ensayo 1: Escalón al 30%
+ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=30.0
+
+# Ensayo 2: Escalón al 45%
+ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=45.0
+
+# Ensayo 3: Escalón al 60%
+ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=60.0
 ```
 
 ---
 
-## 10. Banco de Ejercicios Prácticos
+## 9. Construcción y Análisis de la Curva de Reacción
 
-### 10.1. Nivel 1: Cartesianas y Polares
-Convierta a polares $(\rho, \alpha)$:
-1. $P_1 = (6, 2)$
-2. $P_2 = (-5, 4)$
-3. $P_3 = (-3, -7)$
-4. $P_4 = (2, -6)$
-5. $P_5 = (0, -8)$
-6. $P_6 = (-9, 0)$
+Del archivo CSV se extraen los siguientes puntos característicos:
 
-Convierta a cartesianas $(x, y)$:
-7. $(\rho, \alpha) = (5, 35^\circ)$
-8. $(\rho, \alpha) = (7, 140^\circ)$
-9. $(\rho, \alpha) = (4, -50^\circ)$
-10. $(\rho, \alpha) = (10, 225^\circ)$
+* $t_0$: Instante exacto de aplicación del escalón ($1.0\text{ s}$).
+* $u_0, u_{ss}$: Amplitud del PWM antes y durante el escalón.
+* $\omega_0$: Velocidad media antes de $t_0$ ($\approx 0\text{ rad/s}$).
+* $\omega_{ss}$: Velocidad media en régimen permanente estacionario.
 
 ---
 
-### 10.2. Nivel 2: Matrices de Rotación
-Construya $R(\theta)$, calcule $R^T$, $\det(R)$ y verifique $R^T R = I$:
-11. $R(15^\circ)$
-12. $R(45^\circ)$
-13. $R(135^\circ)$
-14. $R(-30^\circ)$
-15. $R(-120^\circ)$
-16. $R(180^\circ)$
+## 10. Estimación de la Ganancia Estática ($K$)
+
+$$\boxed{K = \frac{\Delta\omega}{\Delta u} = \frac{\omega_{ss} - \omega_0}{u_{ss} - u_0}\quad \left[\frac{\text{rad/s}}{\%\,\text{PWM}}\right]}$$
+
+Partiendo desde reposo ($u_0 = 0$, $\omega_0 \approx 0$):
+
+$$K \approx \frac{\omega_{ss}}{u_{ss}}$$
 
 ---
 
-### 10.3. Nivel 3: Rotación de Vectores
-Calcule $\mathbf{p}' = R(\theta)\mathbf{p}$ y compare normas:
-17. $\mathbf{p} = \begin{bmatrix} 5 \\ -1 \end{bmatrix}, \quad \theta = 35^\circ$
-18. $\mathbf{p} = \begin{bmatrix} -2 \\ 6 \end{bmatrix}, \quad \theta = 70^\circ$
-19. $\mathbf{p} = \begin{bmatrix} -4 \\ -3 \end{bmatrix}, \quad \theta = -40^\circ$
-20. $\mathbf{p} = \begin{bmatrix} 1 \\ 7 \end{bmatrix}, \quad \theta = 110^\circ$
-21. $\mathbf{p} = \begin{bmatrix} 8 \\ 0 \end{bmatrix}, \quad \theta = -135^\circ$
+## 11. Modelo FOP: Estimación de la Constante de Tiempo ($\tau$)
+
+La respuesta analítica de un sistema FOP ante entrada escalón es:
+
+$$\omega(t) = \omega_0 + \Delta\omega \left(1 - e^{-(t - t_0)/\tau}\right), \qquad t \geq t_0$$
+
+Para $t - t_0 = \tau$:
+
+$$1 - e^{-1} = 1 - 0.367879 = 0.63212 \approx 63.2\,\%$$
+
+$$\boxed{\omega_{63.2} = \omega_0 + 0.632\,(\omega_{ss} - \omega_0)}$$
+
+Se busca en los datos el instante $t_{63.2}$ donde $\omega(t_{63.2}) \approx \omega_{63.2}$:
+
+$$\boxed{\tau_{\mathrm{FOP}} = t_{63.2} - t_0}$$
+
+```text
+  ω(t) ^
+       |                                              ...  ω_ss
+       |                                  . ''''''''''
+       |                          . '
+ω_63.2 |-------------+---------.'
+       |             |       . '
+       |             |   . '
+   ω_0 +-------------+.'
+       0            t_0       t_63.2                         ---> Tiempo (s)
+                     |<-- τ -->|
+```
 
 ---
 
-### 10.4. Nivel 4: Composición de Rotaciones
-Determine la rotación equivalente y compruebe matricialmente $R(\theta_2)R(\theta_1) = R(\theta_1 + \theta_2)$:
-22. $\theta_1 = 15^\circ, \quad \theta_2 = 65^\circ$
-23. $\theta_1 = 80^\circ, \quad \theta_2 = -30^\circ$
-24. $\theta_1 = -45^\circ, \quad \theta_2 = -25^\circ$
-25. $\theta_1 = 120^\circ, \quad \theta_2 = 70^\circ$
+## 12. Modelo FOPDT: Incorporación del Retardo ($\theta$)
+
+Si existe un retardo aparente $\theta$ entre $t_0$ y el instante $t_{\text{inicio}}$ en el que la velocidad comienza a elevarse:
+
+$$\boxed{\theta \approx t_{\text{inicio}} - t_0}$$
+
+$$t_{63.2} = t_0 + \theta + \tau$$
+
+$$\boxed{\tau_{\mathrm{FOPDT}} = t_{63.2} - t_0 - \theta}$$
+
+```text
+  ω(t) ^
+       |                                              ...  ω_ss
+       |                                  . ''''''''''
+       |                          . '
+ω_63.2 |-----------------------.'
+       |                     . '
+       |                 . '
+   ω_0 +-------------+---+.'
+       0            t_0 t_ini t_63.2                         ---> Tiempo (s)
+                     | θ |<-- τ -->|
+```
 
 ---
 
-### 10.5. Nivel 5: Transformación Local a Global
-Calcule ${}^{G}\mathbf{p} = {}^{G}\mathbf{p}_R + R(\theta){}^{R}\mathbf{p}$:
-26. ${}^{G}\mathbf{p}_R = \begin{bmatrix} 1 \\ 4 \end{bmatrix}, \quad \theta = 45^\circ, \quad {}^{R}\mathbf{p} = \begin{bmatrix} 3 \\ 2 \end{bmatrix}$
-27. ${}^{G}\mathbf{p}_R = \begin{bmatrix} -3 \\ 2 \end{bmatrix}, \quad \theta = -30^\circ, \quad {}^{R}\mathbf{p} = \begin{bmatrix} 5 \\ 1 \end{bmatrix}$
-28. ${}^{G}\mathbf{p}_R = \begin{bmatrix} 4 \\ -2 \end{bmatrix}, \quad \theta = 120^\circ, \quad {}^{R}\mathbf{p} = \begin{bmatrix} -1 \\ 3 \end{bmatrix}$
-29. ${}^{G}\mathbf{p}_R = \begin{bmatrix} -5 \\ -1 \end{bmatrix}, \quad \theta = 75^\circ, \quad {}^{R}\mathbf{p} = \begin{bmatrix} 2 \\ -4 \end{bmatrix}$
+## 13. Comparación y Ajuste Offline con Scripts de Python
+
+Los scripts automatizados de identificación se encuentran en:
+
+* **Identificación FOP:** [`stage_02_system_identification/analysis/identify_fop.py`](../../stage_02_system_identification/analysis/identify_fop.py)
+* **Identificación FOPDT:** [`stage_02_system_identification/analysis/identify_fopdt.py`](../../stage_02_system_identification/analysis/identify_fopdt.py)
+* **Comparador de Puntos de Operación:** [`stage_02_system_identification/analysis/compare_operating_points.py`](../../stage_02_system_identification/analysis/compare_operating_points.py)
+
+### Ejecución del Análisis:
+
+```bash
+cd ~/ros2-for-control-dc-motor-system/stage_02_system_identification/analysis
+
+# Identificar modelo FOP para 45% PWM
+python3 identify_fop.py ../data/raw/pwm_45/motor_step_response.csv
+
+# Identificar modelo FOPDT para 45% PWM
+python3 identify_fopdt.py ../data/raw/pwm_45/motor_step_response.csv
+
+# Comparar respuestas en 30%, 45% y 60%
+python3 compare_operating_points.py ../data/raw/pwm_30/*.csv ../data/raw/pwm_45/*.csv ../data/raw/pwm_60/*.csv
+```
 
 ---
 
-### 10.6. Nivel 6: Transformación Global a Local (Inversa)
-Calcule ${}^{R}\mathbf{p} = R^T(\theta)({}^{G}\mathbf{p} - {}^{G}\mathbf{p}_R)$:
-30. ${}^{G}\mathbf{p}_R = \begin{bmatrix} 2 \\ 3 \end{bmatrix}, \quad \theta = 40^\circ, \quad {}^{G}\mathbf{p} = \begin{bmatrix} 7 \\ 6 \end{bmatrix}$
-31. ${}^{G}\mathbf{p}_R = \begin{bmatrix} -4 \\ 1 \end{bmatrix}, \quad \theta = -60^\circ, \quad {}^{G}\mathbf{p} = \begin{bmatrix} 0 \\ 5 \end{bmatrix}$
-32. ${}^{G}\mathbf{p}_R = \begin{bmatrix} 3 \\ -3 \end{bmatrix}, \quad \theta = 150^\circ, \quad {}^{G}\mathbf{p} = \begin{bmatrix} -2 \\ 2 \end{bmatrix}$
+## 14. Tabla de Resultados Experimentales
+
+Complete la tabla con los parámetros identificados en los tres ensayos:
+
+| PWM (\%) | $\omega_{ss}$ (rad/s) | $K$ (rad/s / \%PWM) | $\tau_{\text{FOP}}$ (s) | $\theta$ (s) | $\tau_{\text{FOPDT}}$ (s) | Modelo Seleccionado |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **30 %** | | | | | | |
+| **45 %** | | | | | | |
+| **60 %** | | | | | | |
 
 ---
 
-## 11. Taller de Aplicación e Integración
+## 15. Construcción de las Funciones de Transferencia
 
-### Contexto Experimental
-Un robot móvil posee la pose global:
+Escriba las funciones de transferencia obtenidas para cada punto de operación:
 
-$${}^{G}\mathbf{x}_R = \begin{bmatrix} -2 \\ 3 \\ 55^\circ \end{bmatrix}$$
+$$G_{30}(s) = \frac{K_{30}}{\tau_{30} s + 1}$$
 
-Los sensores locales detectan tres balizas en:
+$$G_{45}(s) = \frac{K_{45} e^{-\theta_{45} s}}{\tau_{45} s + 1}$$
 
-$${}^{R}\mathbf{p}_1 = \begin{bmatrix} 4 \\ 1 \end{bmatrix}, \qquad {}^{R}\mathbf{p}_2 = \begin{bmatrix} 2 \\ -3 \end{bmatrix}, \qquad {}^{R}\mathbf{p}_3 = \begin{bmatrix} -1 \\ 4 \end{bmatrix}$$
-
-### Actividades:
-1. **Desarrollo Analítico:** Construya $R(55^\circ)$ y calcule ${}^{G}\mathbf{p}_1, {}^{G}\mathbf{p}_2, {}^{G}\mathbf{p}_3$.
-2. **Transformación Inversa:** A partir de los resultados globales, aplique ${}^{R}\mathbf{p}_i = R^T(55^\circ)({}^{G}\mathbf{p}_i - {}^{G}\mathbf{p}_R)$ y demuestre que el error numérico es $\mathbf{e} \approx \mathbf{0}$.
-3. **Simulación en Python:** Implemente un script que reciba la lista de puntos locales y grafique el marco global, la pose del robot (con sus ejes locales $X_R, Y_R$) y las posiciones de las balizas en el plano.
-4. **Prueba de Invariancia:** Modifique la orientación del robot a $\theta = 100^\circ$ y verifique que las distancias relativas $\|\mathbf{p}_i\|$ se mantienen constantes.
+$$G_{60}(s) = \frac{K_{60}}{\tau_{60} s + 1}$$
 
 ---
 
-## 12. Conexión con ROS 2 y la Planta de Motor DC
+## 16. Preguntas de Análisis
 
-En el marco del sistema de control del motor DC y robótica móvil con ROS 2:
-1. **Transformaciones en ROS 2 (`tf2`):** Las transformaciones homogéneas $T = \begin{bmatrix} R & \mathbf{p} \\ \mathbf{0}^T & 1 \end{bmatrix}$ implementadas matemáticamente en esta guía son la base del árbol de transformaciones (`/tf` y `/tf_static`) entre marcos de coordenadas (`odom` $\rightarrow$ `base_footprint` $\rightarrow$ `base_link`).
-2. **Odometría del Motor DC:** La integración de pulsos del encoder procesada en [`firmware/esp32_motor_step/src/main.cpp`](../../firmware/esp32_motor_step/src/main.cpp) y enviada a través de tópicos (`/vel_rad_s`, `/vel_rpm`) permite calcular las velocidades de rueda y, mediante la cinemática diferencial, actualizar en tiempo real el vector de estado $[x_R, y_R, \theta]^T$ del robot.
-3. **Identificación Paramétrica (Stage 02):** La identificación de las funciones de transferencia en [`stage_02_system_identification/analysis/`](../../stage_02_system_identification/analysis/) proporciona la dinámica de respuesta temporal del actuador, permitiendo un control de orientación $\theta(t)$ y seguimiento de trayectoria preciso en el plano.
+1. ¿Por qué el modelo experimental se formula en función del porcentaje PWM ($\Omega(s)/U_{\text{PWM}}(s)$) en lugar del voltaje analógico de armadura?
+2. ¿Qué significado físico tiene el valor numérico y las unidades de la ganancia estática $K$?
+3. ¿Por qué el criterio del $63.2\,\%$ es una propiedad exacta de los sistemas lineales de primer orden?
+4. ¿Cómo afecta la presencia de un retardo aparente $\theta$ a la estimación de la constante de tiempo $\tau$?
+5. ¿Qué limitación impone la tasa de muestreo de $10\text{ Hz}$ ($T_s = 0.1\text{ s}$) sobre la resolución para estimar $\theta$?
+6. Si la ganancia $K$ varía apreciablemente entre el $30\,\%$ y el $60\,\%$, ¿qué conclusiones se derivan sobre la linealidad de la planta y la fricción seca (*Coulomb*)?
+7. ¿Por qué un modelo de primer orden simplificado resulta suficiente para diseñar controladores de velocidad robustos en motores DC?
+
+---
+
+## 17. Criterios de Finalización y Resultado Esperado
+
+$$\boxed{\text{Ensayos 30\%, 45\%, 60\%} \longrightarrow \text{Datos CSV} \longrightarrow \text{Parámetros } (K, \tau, \theta) \longrightarrow \text{Funciones de Transferencia } G(s)}$$
+
+La Guía 2 culmina exitosamente cuando se dispone de la base de datos experimental, las gráficas comparativas de respuesta temporal y las funciones de transferencia identificadas, las cuales servirán de entrada para la **Guía 3 (Validación de Modelos)** y el **Diseño de Controladores PI/PID (Guía 4 y 5)**.
