@@ -1,15 +1,20 @@
-# 🚀 ros2-for-control-dc-motor-system — Control e Identificación de Motor DC en ROS 2 & micro-ROS
+<div align="center">
+
+# 🚀 ROS 2 for Control: DC Motor System
+### Plataforma de Instrumentación, Identificación Paramétrica y Control en Lazo Cerrado con ESP32 (micro-ROS)
+
+[![ROS 2 Humble](https://img.shields.io/badge/ROS_2-Humble_Hawksbill-22314E?logo=ros&logoColor=white)](https://docs.ros.org/en/humble/)
+[![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04_LTS-E95420?logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/22.04/)
+[![ESP32 PlatformIO](https://img.shields.io/badge/ESP32-PlatformIO-orange?logo=espressif&logoColor=white)](https://platformio.org/)
+[![micro-ROS Serial](https://img.shields.io/badge/micro--ROS-Serial_115200-green)](https://micro.ros.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ROS_2-Humble_Hawksbill-22314E?logo=ros&logoColor=white" alt="ROS 2 Humble">
-  <img src="https://img.shields.io/badge/Ubuntu-22.04_LTS-E95420?logo=ubuntu&logoColor=white" alt="Ubuntu 22.04">
-  <img src="https://img.shields.io/badge/ESP32-PlatformIO-orange?logo=espressif&logoColor=white" alt="PlatformIO ESP32">
-  <img src="https://img.shields.io/badge/micro--ROS-Serial_115200-green" alt="micro-ROS Serial">
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License">
+Repositorio integral de <b>ROS 2 (Humble)</b> y firmware para <b>ESP32 (micro-ROS)</b> orientado al <b>diseño, instrumentación, identificación paramétrica experimental y control de velocidad en lazo cerrado</b> de una planta de motor DC mediante pruebas de respuesta escalón.
 </p>
 
-Repositorio integral de **ROS 2 (Humble)** y firmware para **ESP32 (micro-ROS)** orientado al **diseño, instrumentación, identificación paramétrica experimental y control de velocidad en lazo cerrado** de una planta de motor DC mediante pruebas de respuesta escalón.
+</div>
 
 ---
 
