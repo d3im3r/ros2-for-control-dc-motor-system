@@ -234,12 +234,12 @@ $$\boxed{\text{PWM} \longrightarrow \text{Accionamiento} \longrightarrow \text{M
 ### 7.1. Callback de Suscripción
 Se ejecuta de forma asíncrona cuando un mensaje llega al tópico `/pwm_input`:
 
-$$\text{Mensaje en } \texttt{/pwm\_input} \longrightarrow \text{Callback} \longrightarrow \text{Actualización de PWM y dirección}$$
+$$\text{Mensaje en } \text{/pwm\_input} \longrightarrow \text{Callback} \longrightarrow \text{Actualización de PWM y dirección}$$
 
 ### 7.2. Interrupciones e ISR (Encoder)
 El encoder genera pulsos mecánicos rápidos que no pueden esperarse mediante lecturas secuenciales en un bucle (*polling*), pues se perderían cuentas durante otras operaciones:
 
-$$\boxed{\text{Flanco en Canal A} \longrightarrow \text{ISR de hardware} \longrightarrow \text{Actualización de } \texttt{encoder\_count}}$$
+$$\boxed{\text{Flanco en Canal A} \longrightarrow \text{ISR de hardware} \longrightarrow \text{Actualización de } \text{encoder\_count}}$$
 
 ```cpp
 // Declaración de variable modificada en ISR

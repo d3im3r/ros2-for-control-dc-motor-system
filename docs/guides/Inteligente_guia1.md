@@ -228,7 +228,7 @@ void loop() {
 6. Registrar el valor final de `Ticks`.
 7. Repetir el procedimiento 5 veces.
 
-| Ensayo | Ticks Medidos ($N_i$) | $|N_i|$ |
+| Ensayo | Ticks Medidos ($N_i$) | $\lvert N_i \rvert$ |
 | :---: | :---: | :---: |
 | 1 | 960 | 960 |
 | 2 | 960 | 960 |
@@ -236,7 +236,7 @@ void loop() {
 | 4 | 960 | 960 |
 | 5 | 960 | 960 |
 
-$$\boxed{N_{\text{rev}} = \frac{\sum_{i=1}^5 |N_i|}{5} = 960\ \text{ticks/rev}}$$
+$$\boxed{N_{\text{rev}} = \frac{\sum_{i=1}^5 \lvert N_i \rvert}{5} = 960\ \text{ticks/rev}}$$
 
 En el firmware principal se establece:
 
