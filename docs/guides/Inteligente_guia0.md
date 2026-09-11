@@ -234,12 +234,12 @@ $$\boxed{\text{PWM} \longrightarrow \text{Accionamiento} \longrightarrow \text{M
 ### 7.1. Callback de Suscripción
 Se ejecuta de forma asíncrona cuando un mensaje llega al tópico `/pwm_input`:
 
-$$\text{Mensaje en } \text{/pwm\_input} \longrightarrow \text{Callback} \longrightarrow \text{Actualización de PWM y dirección}$$
+> `Mensaje en /pwm_input` $\longrightarrow$ `Callback` $\longrightarrow$ `Actualización de PWM y dirección`
 
 ### 7.2. Interrupciones e ISR (Encoder)
 El encoder genera pulsos mecánicos rápidos que no pueden esperarse mediante lecturas secuenciales en un bucle (*polling*), pues se perderían cuentas durante otras operaciones:
 
-$$\boxed{\text{Flanco en Canal A} \longrightarrow \text{ISR de hardware} \longrightarrow \text{Actualización de } \text{encoder\_count}}$$
+> `Flanco en Canal A` $\longrightarrow$ `ISR de hardware` $\longrightarrow$ `Actualización de encoder_count`
 
 ```cpp
 // Declaración de variable modificada en ISR
@@ -262,7 +262,7 @@ void IRAM_ATTR encoderISR() {
 ### 7.3. Timer Periódico ($T_s = 0.1\text{ s}$)
 El cálculo de velocidad requiere un intervalo de tiempo conocido:
 
-$$\text{Cada } T_s \longrightarrow \text{Leer contador protegido} \longrightarrow \text{Calcular } \omega \text{ y } n \longrightarrow \text{Publicar tópicos}$$
+> `Cada` $T_s$ $\longrightarrow$ `Leer contador protegido` $\longrightarrow$ `Calcular` $\omega$ `y` $n$ $\longrightarrow$ `Publicar tópicos`
 
 $$T_s = 0.1\text{ s} \implies f_s = \frac{1}{T_s} = 10\text{ Hz}$$
 
