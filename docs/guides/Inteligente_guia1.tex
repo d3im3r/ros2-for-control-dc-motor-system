@@ -1,0 +1,28 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\title{\textbf{Guía 1: Nodo micro-ROS para motor DC}\\Control Inteligente -- ING01343-ING278}
+\author{Politécnico Colombiano Jaime Isaza Cadavid\\Profesor: Deimer Miranda Montoya, MSc.(c).}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Introducción}
+Construcción y validación de la instrumentación física y software del motor DC utilizando micro-ROS sobre ESP32, puente H L298, encoder de cuadratura ($N_{rev} = 960$ ticks/rev) y display OLED SH1106.
+
+\section{Fórmulas de Conversión}
+La velocidad angular se estima periódicamente con $T_s = 0.1\,\text{s}$ ($f_s = 10\,\text{Hz}$):
+\begin{equation}
+\omega[k] = \frac{2\pi \Delta N[k]}{N_{rev} \Delta t} \quad [\text{rad/s}]
+\end{equation}
+\begin{equation}
+n[k] = \frac{60 \Delta N[k]}{N_{rev} \Delta t} \quad [\text{rpm}]
+\end{equation}
+
+\end{document}

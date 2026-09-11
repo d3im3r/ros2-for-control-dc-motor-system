@@ -9,11 +9,23 @@ Hardware node (ESP32 micro-ROS) interacts physically with the DC motor.
 """
 
 from launch import LaunchDescription
-from launch.actions import LogInfo
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    pkg_bringup = FindPackageShare('dc_motor_bringup')
+
+    base_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([pkg_bringup, 'launch', 'motor_system.launch.py'])
+        )
+    )
+
     return LaunchDescription([
+        base_launch,
         LogInfo(
             msg="[Stage 01] Launching Motor Instrumentation & Validation Environment..."
         ),

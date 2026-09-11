@@ -1,19 +1,20 @@
-# ROS 2
+# ROS 2 build artifacts
 build/
 install/
 log/
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
 
 # Python
 __pycache__/
-*.pyc
-*.pyo
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
 
 # LaTeX generated files
 *.aux
@@ -21,3 +22,18 @@ __pycache__/
 *.out
 *.toc
 *.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
