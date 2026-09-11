@@ -1,0 +1,23 @@
+# ROS 2
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# LaTeX generated files
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
