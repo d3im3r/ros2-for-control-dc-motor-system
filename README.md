@@ -327,10 +327,7 @@ ros2-for-control-dc-motor-system/
 ├── .gitignore                           # Reglas de exclusión de Git
 │
 ├── docs/                                # Documentación académica y guías
-│   ├── guides/                          # Guías de laboratorio (Markdown y LaTeX)
-│   │   ├── Inteligente_guia0.md         # Guía 0: Diseño de nodo micro-ROS
-│   │   ├── Inteligente_guia1.md         # Guía 1: Instrumentación del motor DC
-│   │   └── Inteligente_guia2.md         # Guía 2: Identificación paramétrica
+│   ├── guides/                          # Guías en Markdown (.md) y fuentes LaTeX (.tex)
 │   ├── diagrams/                        # Diagramas de arquitectura
 │   └── images/                          # Recursos gráficos
 │

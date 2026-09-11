@@ -16,7 +16,8 @@ env/
 venv/
 .venv/
 
-# LaTeX generated files
+# LaTeX files
+*.tex
 *.aux
 *.log
 *.out
