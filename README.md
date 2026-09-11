@@ -261,8 +261,8 @@ $$G_{\text{FOP}}(s) = \frac{K}{\tau s + 1} \qquad \text{o} \qquad G_{\text{FOPDT
 
 donde:
 
-* **Ganancia estática:** $K = \frac{\omega_{ss} - \omega_0}{u_{ss} - u_0}\quad [\text{rad/s / \%PWM}]$
-* **Constante de tiempo:** $\tau = t_{63.2\%} - t_0$ (criterio del $63.2\,\%$ de la respuesta total).
+* **Ganancia estática:** $K = \frac{\omega_{ss} - \omega_0}{u_{ss} - u_0}\quad [\text{rad/s / } \\%\text{PWM}]$
+* **Constante de tiempo:** $\tau = t_{63.2\\%} - t_0$ (criterio del $63.2\\,\\%$ de la respuesta total).
 * **Retardo aparente:** $\theta \approx t_{\text{inicio}} - t_0$.
 
 ### Scripts de Ajuste Paramétrico Offline
