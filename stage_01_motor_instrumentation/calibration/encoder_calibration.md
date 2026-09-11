@@ -1,13 +1,13 @@
-# Calibración Experimental del Encoder
+# Experimental Encoder Calibration
 
-## Procedimiento
-1. Cargar firmware de calibración serial en el ESP32.
-2. Girar manualmente el eje exactamente una revolución completa ($360^\circ$).
-3. Registrar los ticks leídos por el canal A en interrupción `CHANGE`.
-4. Repetir 5 ensayos independientes.
+## Procedure
+1. Flash the serial calibration firmware to the ESP32.
+2. Manually rotate the motor output shaft exactly one full revolution ($360^\circ$).
+3. Record ticks read by Channel A on hardware interrupt (`CHANGE`).
+4. Repeat across 5 independent trials.
 
-## Resultados
-| Ensayo | Ticks Medidos ($|N_i|$) |
+## Results
+| Trial | Measured Ticks ($\lvert N_i \rvert$) |
 | :---: | :---: |
 | 1 | 960 |
 | 2 | 960 |
@@ -15,8 +15,8 @@
 | 4 | 960 |
 | 5 | 960 |
 
-### Constante Adoptada
-$$N_{rev} = 960 \text{ ticks/rev}$$
+### Adopted Constant
+$$N_{\mathrm{rev}} = 960\ \text{ticks/rev}$$
 ```cpp
 const float COUNTS_PER_REV = 960.0f;
 ```

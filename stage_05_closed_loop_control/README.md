@@ -1,11 +1,11 @@
-# Stage 05: Closed-Loop Control (Futuro)
+# Stage 05: Closed-Loop Control (Future Stage)
 
-## 🎯 Pregunta Orientadora
-> **¿El controlador implementado en lazo cerrado estabiliza y regula adecuadamente la velocidad del motor real?**
+## 🎯 Guiding Question
+> **Does the implemented closed-loop controller stabilize and regulate the speed of the physical motor in real time?**
 
 ---
 
-## 📌 Objetivos
-1. Ejecutar el controlador en tiempo real sobre el hardware físico utilizando ROS 2 y micro-ROS.
-2. Evaluar el rechazo a perturbaciones de carga mecánica.
-3. Comparar el desempeño real vs. simulado en Stage 04.
+## 📌 Objectives
+1. Deploy the controller in real time on physical hardware using ROS 2 and micro-ROS.
+2. Evaluate dynamic disturbance rejection under mechanical load changes.
+3. Benchmark real physical response against Stage 04 simulations.

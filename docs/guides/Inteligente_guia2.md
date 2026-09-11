@@ -1,112 +1,112 @@
-# Guía 2: Identificación Experimental Mediante Prueba Escalón
+# Guide 2: Experimental Identification via Step Response Testing
 
 <div align="center">
 
-**Asignatura:** Control Inteligente (`ING01343-ING278`)  
-**Institución:** Politécnico Colombiano Jaime Isaza Cadavid — Facultad de Ingeniería  
-**Docente:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
-**Período Académico:** 2026-2  
-**Modalidad:** Trabajo práctico guiado (Individual o parejas)  
-**Entregables:** Curvas de reacción experimentales, archivos CSV registrados y modelos matemáticos FOP y FOPDT identificados
+**Course:** Intelligent Control (`ING01343-ING278`)  
+**Institution:** Politécnico Colombiano Jaime Isaza Cadavid — Faculty of Engineering  
+**Instructor:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
+**Academic Period:** 2026-2  
+**Format:** Guided Laboratory (Individual or pairs)  
+**Deliverables:** Experimental reaction curves, recorded CSV datasets, and fitted FOP / FOPDT mathematical models
 
 </div>
 
 ---
 
-## 1. Introducción
+## 1. Introduction
 
-En la **Guía 1** se construyó y validó el nodo micro-ROS `motor_step_node`, capaz de recibir una referencia de PWM, accionar el motor DC, estimar su velocidad angular mediante un encoder incremental y publicar dicha medición hacia ROS 2. La calibración experimental realizada sobre el montaje estableció:
+In **Guide 1**, the micro-ROS node `motor_step_node` was built and validated, capable of receiving a PWM command, driving the DC motor, estimating angular velocity from an incremental encoder, and publishing telemetry to ROS 2. The experimental calibration established:
 
 $$\boxed{N_{\mathrm{rev}} = 960\ \text{ticks/rev}}$$
 
-En esta segunda guía se utilizará el sistema instrumentado para realizar **identificación paramétrica experimental en lazo abierto**. El procedimiento se basará en la respuesta del motor ante entradas escalón de PWM y en el análisis de su curva de reacción temporal. A partir de los datos entrada-salida se propondrán y compararán dos modelos de aproximación dinámica:
+In this second guide, the instrumented setup is used to perform **open-loop experimental parametric identification**. The procedure analyzes the motor's dynamic response to step inputs in PWM through its temporal reaction curve. From the input-output data, two continuous-time transfer function models are fitted and compared:
 
-1. **Modelo de Primer Orden Puro (FOP — *First Order Plus*):**
+1. **First-Order Pure Model (FOP — *First Order Plus*):**
    $$G_{\mathrm{FOP}}(s) = \frac{K}{\tau s + 1}$$
 
-2. **Modelo de Primer Orden con Tiempo Muerto (FOPDT — *First Order Plus Dead Time*):**
+2. **First-Order Plus Dead Time Model (FOPDT):**
    $$G_{\mathrm{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}$$
 
 > [!TIP]
-> **Enfoque Metodológico:**
-> La identificación experimental busca obtener un modelo matemático simplificado y representativo que capture la dinámica dominante del sistema dentro del rango operativo real, permitiendo diseñar posteriormente controladores eficaces.
+> **Methodological Approach:**
+> Experimental identification derives a compact, representative mathematical model capturing dominant system dynamics within the operating range, facilitating effective controller synthesis.
 
 ---
 
-### 1.1. Resultados de Aprendizaje
+### 1.1. Learning Outcomes
 
-Al finalizar la guía, el estudiante estará en capacidad de:
+By the end of this guide, the student will be able to:
 
-1. Realizar pruebas escalón repetibles y automatizadas sobre el motor DC.
-2. Registrar simultáneamente la señal de entrada PWM y la velocidad angular en archivos CSV estructurados.
-3. Interpretar la curva de reacción experimental del sistema físico.
-4. Extraer el valor inicial $\omega_0$ y el régimen permanente $\omega_{ss}$.
-5. Calcular la ganancia estática $K$ del sistema.
-6. Estimar la constante de tiempo $\tau$ mediante el criterio del $63.2\,\%$ de la respuesta total.
-7. Estimar el retardo aparente $\theta$ cuando sea observable en el transitorio.
-8. Construir modelos de transferencia FOP y FOPDT a partir de datos reales.
-9. Comparar los parámetros obtenidos en diferentes puntos de operación ($30\,\%$, $45\,\%$ y $60\,\%$ PWM).
-10. Evaluar si un único modelo lineal representa adecuadamente la planta o si existen efectos no lineales relevantes.
+1. Perform repeatable and automated step response tests on the DC motor.
+2. Simultaneously log PWM input signals and angular velocity to structured CSV files.
+3. Interpret the experimental reaction curve of the physical plant.
+4. Extract the initial velocity $\omega_0$ and steady-state velocity $\omega_{ss}$.
+5. Calculate the static gain $K$ of the system.
+6. Estimate the time constant $\tau$ using the $63.2\,\%$ response criterion.
+7. Estimate the apparent dead time $\theta$ when observable during the transient.
+8. Construct continuous-time FOP and FOPDT transfer function models from real data.
+9. Compare fitted parameters across different operating points ($30\,\%$, $45\,\%$, and $60\,\%$ PWM).
+10. Assess system linearity versus nonlinearities such as Coulomb friction and deadband.
 
 ---
 
-## 2. Punto de Partida: Sistema Instrumentado
+## 2. Starting Point: Validated System
 
-Se parte del sistema de instrumentación validado con la siguiente arquitectura de comunicación:
+The experiment builds upon the instrumented system with the following topic interfaces:
 
-| Tópico | Dirección | Tipo de Mensaje | Descripción |
+| Topic | Direction | Message Type | Description |
 | :--- | :---: | :---: | :--- |
-| `/pwm_input` | PC $\rightarrow$ ESP32 | `std_msgs/msg/Float32` | Referencia PWM en porcentaje $[-100.0, 100.0]\,\%$ |
-| `/vel_rad_s` | ESP32 $\rightarrow$ PC | `std_msgs/msg/Float32` | Velocidad angular en $\text{rad/s}$ ($T_s = 0.1\text{ s}$) |
-| `/vel_rpm` | ESP32 $\rightarrow$ PC | `std_msgs/msg/Float32` | Velocidad angular en $\text{rpm}$ |
+| `/pwm_input` | PC $\rightarrow$ ESP32 | `std_msgs/msg/Float32` | PWM reference percentage $[-100.0, 100.0]\,\%$ |
+| `/vel_rad_s` | ESP32 $\rightarrow$ PC | `std_msgs/msg/Float32` | Angular velocity in $\text{rad/s}$ ($T_s = 0.1\text{ s}$) |
+| `/vel_rpm` | ESP32 $\rightarrow$ PC | `std_msgs/msg/Float32` | Angular velocity in $\text{rpm}$ |
 
 $$\omega[k] = \frac{2\pi \Delta N[k]}{960 \Delta t}\quad [\text{rad/s}]$$
 
 > [!CAUTION]
-> Antes de iniciar las pruebas de identificación, verifique que la medición de velocidad angular responda sin retardos espurios y que el motor se detenga completamente al enviar `0.0` a `/pwm_input`.
+> Before running identification trials, verify that the velocity feedback reacts without spurious delay and that the motor stops completely when sending `0.0` to `/pwm_input`.
 
 ---
 
-## 3. Fundamento: Identificación Experimental de la Planta
+## 3. Fundamentals: Plant Experimental Identification
 
-La identificación experimental modela la relación entrada-salida considerando:
+Experimental identification models the input-output relationship considering:
 
-* **Entrada:** $u(t) = \text{PWM aplicado } [\%]$
-* **Salida:** $\omega(t) = \text{Velocidad angular } [\text{rad/s}]$
+* **Input:** $u(t) = \text{Applied PWM } [\%]$
+* **Output:** $\omega(t) = \text{Angular Velocity } [\text{rad/s}]$
 
 $$\boxed{G_{\mathrm{exp}}(s) = \frac{\Omega(s)}{U_{\mathrm{PWM}}(s)}}$$
 
 ```mermaid
 flowchart LR
-    STEP["Prueba Escalón<br>(Launch automatizado)"] --> DATA["Adquisición<br>(u(t), ω(t))"]
-    DATA --> CURVE["Curva de Reacción<br>(Gráfica temporal)"]
-    CURVE --> STRUCT["Estructura<br>(FOP / FOPDT)"]
-    STRUCT --> PARAM["Ajuste de Parámetros<br>(K, τ, θ)"]
-    PARAM --> MODEL["Modelo Matemático<br>G(s)"]
+    STEP["Step Test<br>(Automated Launch)"] --> DATA["Data Logging<br>(u(t), ω(t))"]
+    DATA --> CURVE["Reaction Curve<br>(Time Plot)"]
+    CURVE --> STRUCT["Model Structure<br>(FOP / FOPDT)"]
+    STRUCT --> PARAM["Parameter Fitting<br>(K, τ, θ)"]
+    PARAM --> MODEL["Mathematical Model<br>G(s)"]
 ```
 
 > [!NOTE]
-> **Curva de Reacción:**
-> Es la respuesta temporal medida de la velocidad angular del motor frente a un cambio tipo escalón en la entrada PWM. Su perfil permite estimar las constantes dinámicas y la ganancia del proceso.
+> **Reaction Curve:**
+> The temporal trajectory of motor speed in response to an applied step input in PWM. Its geometric profile allows extracting dynamic time constants and static gain.
 
 ---
 
-## 4. Estructuras de Modelado: FOP vs. FOPDT
+## 4. Model Structures: FOP vs. FOPDT
 
-Aunque el motor DC posee una dinámica electromecánica de segundo orden (dinámica eléctrica por inductancia de armadura + dinámica mecánica por inercia y fricción), la constante de tiempo eléctrica $\tau_e = L_a/R_a$ es órdenes de magnitud más rápida que la constante mecánica $\tau_m = J/b$. Por tanto, el comportamiento observable de velocidad se modela con alta fidelidad como un sistema de primer orden:
+While a DC motor contains a second-order electromechanical system (armature electrical dynamics $L_a/R_a$ plus mechanical inertia and damping $J/b$), the electrical time constant is orders of magnitude faster than the mechanical time constant. Consequently, speed dynamics are accurately captured by first-order models:
 
-* **Modelo FOP (Primer Orden Puro):**
+* **FOP Model (First-Order Pure):**
   $$\boxed{G_{\mathrm{FOP}}(s) = \frac{K}{\tau s + 1}}$$
-  * $K$: Ganancia estática en $\left[\frac{\text{rad/s}}{\%\,\text{PWM}}\right]$.
-  * $\tau$: Constante de tiempo en $[\text{s}]$.
+  * $K$: Static gain in $\left[\frac{\text{rad/s}}{\%\,\text{PWM}}\right]$.
+  * $\tau$: Time constant in $[\text{s}]$.
 
-* **Modelo FOPDT (Primer Orden con Retardo Aparente):**
+* **FOPDT Model (First-Order Plus Dead Time):**
   $$\boxed{G_{\mathrm{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}}$$
-  * $\theta$: Retardo o tiempo muerto aparente en $[\text{s}]$.
+  * $\theta$: Apparent delay or dead time in $[\text{s}]$.
 
 ---
 
-## 5. Arquitectura ROS 2 para la Prueba Escalón
+## 5. ROS 2 Architecture for Step Testing
 
 ```mermaid
 flowchart TD
@@ -121,13 +121,13 @@ flowchart TD
 
 ---
 
-## 6. Scripts de Adquisición y Visualización en ROS 2
+## 6. Acquisition and Plotting Scripts
 
-Los nodos ejecutables están disponibles en el paquete `dc_motor_experiments`:
+The nodes are provided within the `dc_motor_experiments` package:
 
-### 6.1. Registrador de Datos a CSV (`data_logger.py`)
-* Ubicación: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py)
-* Genera archivos con nombre: `motor_step_response_YYYYMMDD_HHMMSS.csv`
+### 6.1. CSV Data Logger (`data_logger.py`)
+* Location: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py)
+* Generates files named: `motor_step_response_YYYYMMDD_HHMMSS.csv`
 
 ```csv
 Time (s),Angular Velocity (rad/s),PWM (%)
@@ -139,102 +139,102 @@ Time (s),Angular Velocity (rad/s),PWM (%)
 36.100,45.892100,0.000
 ```
 
-### 6.2. Visualizador en Tiempo Real (`velocity_monitor.py`)
-* Ubicación: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py)
-* Grafica dinámicamente $\omega(t)$ vs $t$ con Matplotlib a $10\text{ Hz}$.
+### 6.2. Real-Time Monitor (`velocity_monitor.py`)
+* Location: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py)
+* Displays dynamic $\omega(t)$ vs $t$ Matplotlib plots at $10\text{ Hz}$.
 
 ---
 
-## 7. Diseño de las Pruebas Experimentales
+## 7. Experimental Test Matrix
 
-Se realizarán tres ensayos independientes para caracterizar la planta a diferentes niveles de excitación:
+Three independent step trials will be conducted across distinct operating levels:
 
-| Ensayo | $u_0$ ($\%$) | $u_{\text{step}}$ ($\%$) | Duración Total | Muestras ($10\text{ Hz}$) |
+| Trial | $u_0$ ($\%$) | $u_{\text{step}}$ ($\%$) | Total Duration | Samples ($10\text{ Hz}$) |
 | :---: | :---: | :---: | :---: | :---: |
-| **1** | $0\,\%$ | $30\,\%$ | $40.0\text{ s}$ | $400$ muestras |
-| **2** | $0\,\%$ | $45\,\%$ | $40.0\text{ s}$ | $400$ muestras |
-| **3** | $0\,\%$ | $60\,\%$ | $40.0\text{ s}$ | $400$ muestras |
+| **1** | $0\,\%$ | $30\,\%$ | $40.0\text{ s}$ | $400$ samples |
+| **2** | $0\,\%$ | $45\,\%$ | $40.0\text{ s}$ | $400$ samples |
+| **3** | $0\,\%$ | $60\,\%$ | $40.0\text{ s}$ | $400$ samples |
 
 ---
 
-## 8. Automatización de la Prueba Mediante Launch File
+## 8. Test Automation via ROS 2 Launch File
 
-Para garantizar que todas las pruebas tengan exactamente la misma secuencia temporal y sean comparables, se utiliza el launch file:
+To ensure identical, repeatable timing across all experimental runs, the dedicated launch file is used:
 
-* Ubicación del Launch en el repositorio: [`ros2_ws/src/dc_motor_bringup/launch/stage_02_identification.launch.py`](../../ros2_ws/src/dc_motor_bringup/launch/stage_02_identification.launch.py)
+* Launch file location: [`ros2_ws/src/dc_motor_bringup/launch/stage_02_identification.launch.py`](../../ros2_ws/src/dc_motor_bringup/launch/stage_02_identification.launch.py)
 
-### Perfil Temporal del Ensayo:
+### Step Profile Timing:
 
 ```text
   PWM (%)
      ^
      |              +-----------------------------------+
 step |              |                                   |
-     |              |         Escalón (35.0 s)          |
+     |              |           Step (35.0 s)           |
      |              |                                   |
-  0% +--------------+                                   +---------------> Tiempo (s)
+  0% +--------------+                                   +---------------> Time (s)
      0             1.0                                 36.0           40.0
-        (Reposo 1s)                                      (Reposo fin 4s)
+        (Rest 1s)                                        (Rest end 4s)
 ```
 
-1. **Reposo Inicial ($0.0\text{ s} - 1.0\text{ s}$):** Entrada en $0\,\%$ para registrar la condición inicial $\omega_0$.
-2. **Escalón Activo ($1.0\text{ s} - 36.0\text{ s}$):** Aplicación de $u_{\text{step}}\,\%$ durante $35.0\text{ s}$ para alcanzar régimen permanente.
-3. **Reposo Final ($36.0\text{ s} - 40.0\text{ s}$):** Regreso a $0\,\%$ para frenado seguro.
+1. **Initial Rest ($0.0\text{ s} - 1.0\text{ s}$):** $0\,\%$ PWM to record baseline initial condition $\omega_0$.
+2. **Active Step ($1.0\text{ s} - 36.0\text{ s}$):** Apply $u_{\text{step}}\,\%$ for $35.0\text{ s}$ to reach steady-state.
+3. **Final Rest ($36.0\text{ s} - 40.0\text{ s}$):** Return to $0\,\%$ for safe motor deceleration.
 
-### Ejecución de los Ensayos:
+### Running the Trials:
 
 ```bash
-# Compilar y cargar el workspace
+# Build and source the workspace
 cd ~/ros2-for-control-dc-motor-system/ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 
-# Ensayo 1: Escalón al 30%
+# Trial 1: 30% PWM Step
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=30.0
 
-# Ensayo 2: Escalón al 45%
+# Trial 2: 45% PWM Step
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=45.0
 
-# Ensayo 3: Escalón al 60%
+# Trial 3: 60% PWM Step
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=60.0
 ```
 
 ---
 
-## 9. Construcción y Análisis de la Curva de Reacción
+## 9. Reaction Curve Analysis
 
-Del archivo CSV se extraen los siguientes puntos característicos:
+From the recorded CSV dataset, the following key points are identified:
 
-* $t_0$: Instante exacto de aplicación del escalón ($1.0\text{ s}$).
-* $u_0, u_{ss}$: Amplitud del PWM antes y durante el escalón.
-* $\omega_0$: Velocidad media antes de $t_0$ ($\approx 0\text{ rad/s}$).
-* $\omega_{ss}$: Velocidad media en régimen permanente estacionario.
+* $t_0$: Exact time of step application ($1.0\text{ s}$).
+* $u_0, u_{ss}$: PWM amplitude before and during the step.
+* $\omega_0$: Mean initial velocity prior to $t_0$ ($\approx 0\text{ rad/s}$).
+* $\omega_{ss}$: Mean steady-state velocity during the plateau.
 
 ---
 
-## 10. Estimación de la Ganancia Estática ($K$)
+## 10. Static Gain Estimation ($K$)
 
 $$\boxed{K = \frac{\Delta\omega}{\Delta u} = \frac{\omega_{ss} - \omega_0}{u_{ss} - u_0}\quad \left[\frac{\text{rad/s}}{\%\,\text{PWM}}\right]}$$
 
-Partiendo desde reposo ($u_0 = 0$, $\omega_0 \approx 0$):
+Starting from rest ($u_0 = 0$, $\omega_0 \approx 0$):
 
 $$K \approx \frac{\omega_{ss}}{u_{ss}}$$
 
 ---
 
-## 11. Modelo FOP: Estimación de la Constante de Tiempo ($\tau$)
+## 11. FOP Model: Time Constant Estimation ($\tau$)
 
-La respuesta analítica de un sistema FOP ante entrada escalón es:
+The analytic step response of a FOP system is:
 
 $$\omega(t) = \omega_0 + \Delta\omega \left(1 - e^{-(t - t_0)/\tau}\right), \qquad t \geq t_0$$
 
-Para $t - t_0 = \tau$:
+At $t - t_0 = \tau$:
 
 $$1 - e^{-1} = 1 - 0.367879 = 0.63212 \approx 63.2\,\%$$
 
 $$\boxed{\omega_{63.2} = \omega_0 + 0.632\,(\omega_{ss} - \omega_0)}$$
 
-Se busca en los datos el instante $t_{63.2}$ donde $\omega(t_{63.2}) \approx \omega_{63.2}$:
+Locate $t_{63.2}$ where $\omega(t_{63.2}) \approx \omega_{63.2}$:
 
 $$\boxed{\tau_{\mathrm{FOP}} = t_{63.2} - t_0}$$
 
@@ -247,17 +247,17 @@ $$\boxed{\tau_{\mathrm{FOP}} = t_{63.2} - t_0}$$
        |             |       . '
        |             |   . '
    ω_0 +-------------+.'
-       0            t_0       t_63.2                         ---> Tiempo (s)
+       0            t_0       t_63.2                         ---> Time (s)
                      |<-- τ -->|
 ```
 
 ---
 
-## 12. Modelo FOPDT: Incorporación del Retardo ($\theta$)
+## 12. FOPDT Model: Apparent Delay Estimation ($\theta$)
 
-Si existe un retardo aparente $\theta$ entre $t_0$ y el instante $t_{\text{inicio}}$ en el que la velocidad comienza a elevarse:
+If an apparent delay $\theta$ is observed between $t_0$ and the inflection time $t_{\text{start}}$:
 
-$$\boxed{\theta \approx t_{\text{inicio}} - t_0}$$
+$$\boxed{\theta \approx t_{\text{start}} - t_0}$$
 
 $$t_{63.2} = t_0 + \theta + \tau$$
 
@@ -272,42 +272,42 @@ $$\boxed{\tau_{\mathrm{FOPDT}} = t_{63.2} - t_0 - \theta}$$
        |                     . '
        |                 . '
    ω_0 +-------------+---+.'
-       0            t_0 t_ini t_63.2                         ---> Tiempo (s)
+       0            t_0 t_ini t_63.2                         ---> Time (s)
                      | θ |<-- τ -->|
 ```
 
 ---
 
-## 13. Comparación y Ajuste Offline con Scripts de Python
+## 13. Offline Model Fitting Scripts
 
-Los scripts automatizados de identificación se encuentran en:
+Automated identification scripts are located in:
 
-* **Identificación FOP:** [`stage_02_system_identification/analysis/identify_fop.py`](../../stage_02_system_identification/analysis/identify_fop.py)
-* **Identificación FOPDT:** [`stage_02_system_identification/analysis/identify_fopdt.py`](../../stage_02_system_identification/analysis/identify_fopdt.py)
-* **Comparador de Puntos de Operación:** [`stage_02_system_identification/analysis/compare_operating_points.py`](../../stage_02_system_identification/analysis/compare_operating_points.py)
+* **FOP Model Fitting:** [`stage_02_system_identification/analysis/identify_fop.py`](../../stage_02_system_identification/analysis/identify_fop.py)
+* **FOPDT Model Fitting:** [`stage_02_system_identification/analysis/identify_fopdt.py`](../../stage_02_system_identification/analysis/identify_fopdt.py)
+* **Operating Point Comparator:** [`stage_02_system_identification/analysis/compare_operating_points.py`](../../stage_02_system_identification/analysis/compare_operating_points.py)
 
-### Ejecución del Análisis:
+### Running Offline Analysis:
 
 ```bash
 cd ~/ros2-for-control-dc-motor-system/stage_02_system_identification/analysis
 
-# Identificar modelo FOP para 45% PWM
+# Identify FOP model for 45% PWM dataset
 python3 identify_fop.py ../data/raw/pwm_45/motor_step_response.csv
 
-# Identificar modelo FOPDT para 45% PWM
+# Identify FOPDT model for 45% PWM dataset
 python3 identify_fopdt.py ../data/raw/pwm_45/motor_step_response.csv
 
-# Comparar respuestas en 30%, 45% y 60%
+# Compare 30%, 45%, and 60% operating points
 python3 compare_operating_points.py ../data/raw/pwm_30/*.csv ../data/raw/pwm_45/*.csv ../data/raw/pwm_60/*.csv
 ```
 
 ---
 
-## 14. Tabla de Resultados Experimentales
+## 14. Experimental Results Table
 
-Complete la tabla con los parámetros identificados en los tres ensayos:
+Fill the table with parameters extracted from the three trials:
 
-| PWM (\%) | $\omega_{ss}$ (rad/s) | $K$ (rad/s / \%PWM) | $\tau_{\text{FOP}}$ (s) | $\theta$ (s) | $\tau_{\text{FOPDT}}$ (s) | Modelo Seleccionado |
+| PWM (\%) | $\omega_{ss}$ (rad/s) | $K$ (rad/s / \%PWM) | $\tau_{\text{FOP}}$ (s) | $\theta$ (s) | $\tau_{\text{FOPDT}}$ (s) | Selected Model |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **30 %** | | | | | | |
 | **45 %** | | | | | | |
@@ -315,9 +315,9 @@ Complete la tabla con los parámetros identificados en los tres ensayos:
 
 ---
 
-## 15. Construcción de las Funciones de Transferencia
+## 15. Continuous Transfer Function Formulations
 
-Escriba las funciones de transferencia obtenidas para cada punto de operación:
+Formulate the transfer functions identified for each operating point:
 
 $$G_{30}(s) = \frac{K_{30}}{\tau_{30} s + 1}$$
 
@@ -327,20 +327,20 @@ $$G_{60}(s) = \frac{K_{60}}{\tau_{60} s + 1}$$
 
 ---
 
-## 16. Preguntas de Análisis
+## 16. Analysis Questions
 
-1. ¿Por qué el modelo experimental se formula en función del porcentaje PWM ($\Omega(s)/U_{\text{PWM}}(s)$) en lugar del voltaje analógico de armadura?
-2. ¿Qué significado físico tiene el valor numérico y las unidades de la ganancia estática $K$?
-3. ¿Por qué el criterio del $63.2\,\%$ es una propiedad exacta de los sistemas lineales de primer orden?
-4. ¿Cómo afecta la presencia de un retardo aparente $\theta$ a la estimación de la constante de tiempo $\tau$?
-5. ¿Qué limitación impone la tasa de muestreo de $10\text{ Hz}$ ($T_s = 0.1\text{ s}$) sobre la resolución para estimar $\theta$?
-6. Si la ganancia $K$ varía apreciablemente entre el $30\,\%$ y el $60\,\%$, ¿qué conclusiones se derivan sobre la linealidad de la planta y la fricción seca (*Coulomb*)?
-7. ¿Por qué un modelo de primer orden simplificado resulta suficiente para diseñar controladores de velocidad robustos en motores DC?
+1. Why is the experimental transfer function formulated in terms of PWM percentage ($\Omega(s)/U_{\text{PWM}}(s)$) rather than analog armature voltage?
+2. What is the physical interpretation and engineering unit of the static gain $K$?
+3. Why is the $63.2\,\%$ point an exact mathematical property of linear first-order systems?
+4. How does the inclusion of an apparent dead time $\theta$ modify the estimated value of $\tau$?
+5. What constraint does a $10\text{ Hz}$ sampling rate ($T_s = 0.1\text{ s}$) impose on the resolution of $\theta$?
+6. If the static gain $K$ varies across $30\,\%$, $45\,\%$, and $60\,\%$, what does this indicate regarding plant linearity and Coulomb friction?
+7. Why is a simplified first-order model sufficient for designing robust feedback speed controllers for DC motors?
 
 ---
 
-## 17. Criterios de Finalización y Resultado Esperado
+## 17. Completion Criteria and Deliverables
 
-$$\boxed{\text{Ensayos 30\%, 45\%, 60\%} \longrightarrow \text{Datos CSV} \longrightarrow \text{Parámetros } (K, \tau, \theta) \longrightarrow \text{Funciones de Transferencia } G(s)}$$
+$$\boxed{\text{Step Trials (30\%, 45\%, 60\%)} \longrightarrow \text{CSV Datasets} \longrightarrow \text{Parameters } (K, \tau, \theta) \longrightarrow \text{Transfer Functions } G(s)}$$
 
-La Guía 2 culmina exitosamente cuando se dispone de la base de datos experimental, las gráficas comparativas de respuesta temporal y las funciones de transferencia identificadas, las cuales servirán de entrada para la **Guía 3 (Validación de Modelos)** y el **Diseño de Controladores PI/PID (Guía 4 y 5)**.
+Completing Guide 2 provides the empirical database, fitted reaction curves, and validated transfer functions necessary for **Guide 3 (Model Validation)** and **Feedback Controller Design (Guides 4 and 5)**.

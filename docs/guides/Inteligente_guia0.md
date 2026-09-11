@@ -1,177 +1,177 @@
-# Guía 0: Diseño de un Nodo micro-ROS para Motor DC
+# Guide 0: Design of a micro-ROS Node for a DC Motor
 
 <div align="center">
 
-**Asignatura:** Control Inteligente (`ING01343-ING278`)  
-**Institución:** Politécnico Colombiano Jaime Isaza Cadavid — Facultad de Ingeniería  
-**Docente:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
-**Período Académico:** 2026-2  
-**Dedicación estimada:** 3 a 4 horas (Trabajo autónomo guiado e individual)  
-**Plataforma:** Pop!_OS / Ubuntu 22.04 LTS + ROS 2 Humble + ESP32 + micro-ROS
+**Course:** Intelligent Control (`ING01343-ING278`)  
+**Institution:** Politécnico Colombiano Jaime Isaza Cadavid — Faculty of Engineering  
+**Instructor:** Deimer Miranda Montoya, MSc.(c) — `deimer_miranda91162@elpoli.edu.co`  
+**Academic Period:** 2026-2  
+**Estimated Time:** 3 to 4 hours (Guided and individual autonomous work)  
+**Platform:** Pop!_OS / Ubuntu 22.04 LTS + ROS 2 Humble + ESP32 + micro-ROS
 
 </div>
 
 ---
 
-## 1. Introducción
+## 1. Introduction
 
-En un sistema de control no es suficiente con disponer de un algoritmo matemático. Para actuar sobre una planta real es necesario medir variables, procesar información y convertir las decisiones del controlador en señales capaces de accionar físicamente el sistema.
+In a control system, having a mathematical algorithm is not sufficient on its own. To actuate on a real physical plant, it is necessary to measure variables, process information, and translate controller decisions into physical control signals capable of driving the system.
 
-En esta práctica se diseñará e implementará un nodo micro-ROS sobre un microcontrolador ESP32 para interactuar con un motor DC. El montaje está compuesto por:
+In this lab, a micro-ROS node running on an ESP32 microcontroller will be designed and implemented to interface with a DC motor. The experimental setup consists of:
 
-* Un computador con **Pop!_OS / Ubuntu 22.04 LTS** y **ROS 2 Humble**.
-* Un **ESP32** ejecutando **micro-ROS**.
-* Un puente H **L298N**.
-* Un **motor DC** con caja reductora.
-* Un **encoder incremental de cuadratura**.
+* A computer running **Pop!_OS / Ubuntu 22.04 LTS** with **ROS 2 Humble**.
+* An **ESP32** running **micro-ROS**.
+* An **L298N** H-Bridge power driver.
+* A **DC Motor** with an integrated gearbox.
+* An **incremental quadrature optical/magnetic encoder**.
 
-El objetivo principal de la guía no es comenzar escribiendo código. Primero se comprenderá el sistema, posteriormente se establecerán las responsabilidades de cada componente, se diseñarán las interfaces de comunicación y, solamente después, estas decisiones se traducirán a una implementación en software.
+The primary objective of this guide is not to start by writing code. First, we will understand the system, define the responsibilities of each hardware and software component, design the communication interfaces, and only then translate these engineering decisions into an implementation.
 
 > [!TIP]
-> **Principio de Diseño:**
-> El diseño de un nodo debe comenzar preguntando qué debe hacer, qué información necesita, qué información produce y cuándo debe procesarla.
+> **Core Design Principle:**
+> Node design must begin by asking what it must do, what inputs it requires, what outputs it produces, and when each task must be executed.
 
 ---
 
-### 1.1. Propósito de Aprendizaje
+### 1.1. Learning Objectives
 
-Al finalizar la práctica, el estudiante estará en capacidad de:
+By the end of this practical guide, the student will be able to:
 
-1. Explicar la arquitectura física y de software de un sistema distribuido **ROS 2 — micro-ROS**.
-2. Establecer la responsabilidad de un nodo micro-ROS en un microcontrolador.
-3. Diseñar tópicos, mensajes y unidades de ingeniería antes de programar.
-4. Diferenciar callbacks, interrupciones de hardware (ISR), timers y executors.
-5. Adquirir las señales de un encoder incremental en cuadratura.
-6. Estimar velocidad angular en $\text{rad/s}$ y en $\text{rpm}$.
-7. Accionar un motor DC mediante PWM y un puente H L298N.
-8. Integrar el ESP32 con ROS 2 mediante `micro_ros_agent`.
-9. Visualizar y almacenar experimentalmente la respuesta del sistema.
+1. Explain the physical and software architecture of a distributed **ROS 2 — micro-ROS** system.
+2. Define the exact scope and responsibilities of a micro-ROS node on a microcontroller.
+3. Design ROS 2 topics, message types, and engineering units before programming.
+4. Differentiate between subscriber callbacks, hardware interrupts (ISRs), periodic timers, and executors.
+5. Acquire quadrature signals from an incremental encoder.
+6. Estimate angular velocity in $\text{rad/s}$ and in $\text{rpm}$.
+7. Drive a DC motor using PWM and an L298N H-Bridge.
+8. Integrate the ESP32 with ROS 2 through `micro_ros_agent`.
+9. Experimentally visualize and log the dynamic response of the system.
 
 ---
 
-### 1.2. Relación con la Asignatura (Control Inteligente)
+### 1.2. Relationship with Intelligent Control
 
-En un sistema de control de velocidad interesa comparar la velocidad deseada con la velocidad real de la planta:
+In a closed-loop speed control system, we compare the desired velocity with the actual measured velocity:
 
 $$e(t) = \omega_{\text{ref}}(t) - \omega(t)$$
 
-Posteriormente, un controlador utiliza este error para determinar una acción de control $u(t)$.
+Subsequently, a feedback controller uses this error signal to compute a control action $u(t)$.
 
-Sin embargo, antes de implementar un controlador es necesario responder dos preguntas fundamentales:
+However, before implementing any control law, two fundamental engineering questions must be answered:
 
-$$\textbf{¿Cómo obtiene el sistema la velocidad del motor y cómo convierte una acción de control en movimiento físico?}$$
+$$\textbf{How does the system measure motor speed, and how does it convert a numerical control action into physical motion?}$$
 
-Esta práctica desarrolla precisamente esa infraestructura. La arquitectura obtenida servirá como base para la cadena metodológica:
+This practical guide builds this exact infrastructure. The resulting architecture will serve as the foundation for the experimental methodology:
 
-$$\boxed{\text{Prueba Escalón} \longrightarrow \text{Datos CSV} \longrightarrow \text{Identificación Paramétrica} \longrightarrow \text{Modelo Matemático} \longrightarrow \text{Control en Lazo Cerrado}}$$
+$$\boxed{\text{Step Test} \longrightarrow \text{CSV Data} \longrightarrow \text{Parametric Identification} \longrightarrow \text{Mathematical Model} \longrightarrow \text{Closed-Loop Control}}$$
 
 ---
 
-## 2. Conceptos Fundamentales de ROS 2 y micro-ROS
+## 2. Fundamental Concepts of ROS 2 and micro-ROS
 
-ROS 2 permite construir sistemas distribuidos mediante componentes modulares de software que intercambian información.
+ROS 2 allows building distributed robotic systems using modular software components that exchange information asynchronously.
 
-### Conceptos Clave:
+### Key Concepts:
 
-* **Nodo:** Unidad lógica de ejecución encargada de una responsabilidad determinada.
-* **Tópico:** Canal lógico unidireccional o multidireccional mediante el cual circula información entre nodos bajo el patrón publicador/suscriptor.
-* **Mensaje:** Estructura de datos fuertemente tipada que define la organización de los datos intercambiados.
-* **Publisher y Subscriber:** Mecanismos utilizados respectivamente para emitir y recibir mensajes en un tópico.
+* **Node:** Logical execution unit dedicated to a specific, well-defined responsibility.
+* **Topic:** Logical communication channel through which messages flow under the publisher/subscriber pattern.
+* **Message:** Strongly typed data structure defining the payload format.
+* **Publisher & Subscriber:** Mechanisms used to send and receive messages on a topic, respectively.
 
 > [!NOTE]
-> Un nodo no debe confundirse con un dispositivo físico. Un computador puede ejecutar múltiples nodos simultáneamente y el ESP32 ejecutará un nodo micro-ROS.
+> A node is a software process, not a physical hardware device. A single computer can run multiple nodes concurrently, and the ESP32 runs a specialized micro-ROS node.
 
 ```mermaid
 flowchart LR
-    pub([Nodo Publicador]) -->|"/topico"| sub([Nodo Suscriptor])
+    pub([Publisher Node]) -->|"/topic"| sub([Subscriber Node])
 ```
 
-**Convención Gráfica:**
-* **Elipses (`([ ... ])`):** Nodos ROS 2 o micro-ROS.
-* **Rectángulos con bordes redondeados (`[ ... ]`):** Tópicos.
-* **Rectángulos convencionales:** Componentes físicos o módulos de hardware.
+**Graphical Conventions:**
+* **Ellipses (`([ ... ])`):** ROS 2 or micro-ROS nodes.
+* **Rounded Rectangles (`[ ... ]`):** Topics.
+* **Rectangular Blocks:** Physical hardware components.
 
 ---
 
-### 2.1. ¿Qué aporta micro-ROS?
+### 2.1. What does micro-ROS provide?
 
-ROS 2 se ejecuta normalmente en computadores con sistemas operativos completos (Linux POSIX). Un microcontrolador como el ESP32 dispone de recursos limitados de memoria y cómputo.
+Standard ROS 2 runs on full-fledged POSIX operating systems (Linux/Windows). Microcontrollers such as the ESP32 operate under severe memory and CPU constraints.
 
-micro-ROS permite integrar estos microcontroladores al ecosistema ROS 2 conservando conceptos estándar como:
-* Nodos
-* Publishers y Subscribers
-* Mensajes tipados (`std_msgs`, `geometry_msgs`, etc.)
-* Timers
-* Executors
+micro-ROS brings standard ROS 2 abstractions to microcontrollers:
+* Nodes
+* Publishers and Subscribers
+* Standard typed messages (`std_msgs`, `geometry_msgs`, etc.)
+* Periodic Timers
+* Event Executors
 
-Esto permite que el ESP32 interactúe de forma transparente con otros nodos ROS 2 mientras se encarga de tareas de tiempo real estricto en el hardware.
+This enables the ESP32 to seamlessly communicate with other ROS 2 nodes while handling hard real-time hardware tasks.
 
 ---
 
 ### 2.2. micro-ROS Agent
 
-El `micro_ros_agent` es un nodo ejecutable en el computador que actúa como intermediario entre el cliente micro-ROS del ESP32 y el middleware DDS de ROS 2:
+The `micro_ros_agent` is a bridge node running on the PC that connects the ESP32 micro-ROS client to the standard ROS 2 DDS middleware:
 
-$$\boxed{\text{ROS 2 (DDS)} \longleftrightarrow \text{micro-ROS Agent (PC)} \longleftrightarrow \text{ESP32 (micro-ROS Client)}}$$
+$$\boxed{\text{ROS 2 (DDS Network)} \longleftrightarrow \text{micro-ROS Agent (PC)} \longleftrightarrow \text{ESP32 (micro-ROS Client)}}$$
 
 > [!WARNING]
-> El Agent no controla el motor, no calcula la velocidad y no genera PWM. Su única responsabilidad es permitir la comunicación y conversión de capas entre micro-ROS y el grafo de ROS 2.
+> The Agent does not control the motor, compute velocity, or generate PWM. Its sole responsibility is message serialization and transport bridging between serial/UDP and DDS.
 
 ---
 
-## 3. Arquitectura Física del Sistema
+## 3. Physical Architecture of the System
 
-El sistema se divide en procesamiento, comunicación, potencia, actuación y sensado:
+The hardware setup is organized into processing, communication, power, actuation, and sensing:
 
-| Elemento | Responsabilidad Principal |
+| Component | Main Responsibility |
 | :--- | :--- |
-| **Computador (PC)** | Ejecutar ROS 2 Humble, `micro_ros_agent` y los nodos de visualización, almacenamiento y control. |
-| **ESP32** | Recibir PWM, atender interrupciones del encoder, calcular velocidades y modular PWM hacia el puente H. |
-| **Puente H L298N** | Actuar como etapa de potencia entre el ESP32 y el motor DC. |
-| **Motor DC** | Convertir energía eléctrica en movimiento mecánico rotacional. |
-| **Encoder Incremental** | Convertir el giro del eje en trenes de pulsos digitales en cuadratura A/B. |
+| **Computer (PC)** | Run ROS 2 Humble, `micro_ros_agent`, visualization, logging, and high-level controllers. |
+| **ESP32** | Receive PWM, handle encoder hardware interrupts, compute velocities, and generate LEDC PWM. |
+| **L298N H-Bridge** | Power interface between ESP32 logic levels and the DC motor. |
+| **DC Motor** | Convert electrical energy into rotational mechanical motion. |
+| **Incremental Encoder** | Convert shaft rotation into quadrature digital pulse trains A/B. |
 
 ```mermaid
 flowchart LR
-    PC["Computador<br>(ROS 2)"] <-->|"Comunicación Serial<br>(115200 baud)"| ESP["ESP32<br>(micro-ROS)"]
-    ESP -->|"PWM + Dirección<br>(ENB, IN3, IN4)"| L298["Puente H<br>L298N"]
-    L298 -->|"Potencia Eléctrica<br>(12 V)"| Motor["Motor DC"]
-    Motor -->|"Giro Mecánico"| Encoder["Encoder A/B"]
-    Encoder -->|"Pulsos A/B<br>(GPIO 32, 33)"| ESP
+    PC["Computer<br>(ROS 2)"] <-->|"Serial Communication<br>(115200 baud)"| ESP["ESP32<br>(micro-ROS)"]
+    ESP -->|"PWM + Direction<br>(ENB, IN3, IN4)"| L298["L298N<br>H-Bridge"]
+    L298 -->|"Power (12V)"| Motor["DC Motor"]
+    Motor -->|"Mechanical Rotation"| Encoder["Encoder A/B"]
+    Encoder -->|"A/B Pulses<br>(GPIO 32, 33)"| ESP
 ```
 
-* **Cadena de accionamiento:**
-  $$\boxed{\text{Procesamiento (ESP32)} \longrightarrow \text{Potencia (L298N)} \longrightarrow \text{Actuación (Motor DC)}}$$
-* **Cadena de realimentación/sensado:**
-  $$\boxed{\text{Movimiento (Eje)} \longrightarrow \text{Sensado (Encoder)} \longrightarrow \text{Procesamiento (ESP32)}}$$
+* **Actuation Chain:**
+  $$\boxed{\text{Processing (ESP32)} \longrightarrow \text{Power (L298N)} \longrightarrow \text{Actuation (DC Motor)}}$$
+* **Sensing / Feedback Chain:**
+  $$\boxed{\text{Motion (Shaft)} \longrightarrow \text{Sensing (Encoder)} \longrightarrow \text{Processing (ESP32)}}$$
 
-### Asignación de Pines de Hardware:
+### Hardware Pinout Allocation:
 
-| GPIO ESP32 | Señal | Elemento / Módulo | Descripción |
+| ESP32 GPIO | Signal | Component / Module | Description |
 | :---: | :---: | :---: | :--- |
-| `GPIO 25` | `ENB` | Puente H L298N | Modulación PWM (Canal LEDC 0, 500 Hz, 8 bits) |
-| `GPIO 27` | `IN3` | Puente H L298N | Dirección de giro lógico |
-| `GPIO 26` | `IN4` | Puente H L298N | Dirección de giro lógico |
-| `GPIO 32` | `ENCA` (Canal A) | Encoder | Interrupción de hardware (`CHANGE`) |
-| `GPIO 33` | `ENCB` (Canal B) | Encoder | Detección de sentido de giro |
-| `GPIO 21` | `SDA` | Pantalla OLED SH1106 | Línea de datos $I^2C$ |
-| `GPIO 22` | `SCL` | Pantalla OLED SH1106 | Línea de reloj $I^2C$ |
+| `GPIO 25` | `ENB` | L298N H-Bridge | PWM Modulation (LEDC Channel 0, 500 Hz, 8 bits) |
+| `GPIO 27` | `IN3` | L298N H-Bridge | Direction logic level |
+| `GPIO 26` | `IN4` | L298N H-Bridge | Direction logic level |
+| `GPIO 32` | `ENCA` (Channel A) | Encoder | Hardware interrupt pulse input (`CHANGE`) |
+| `GPIO 33` | `ENCB` (Channel B) | Encoder | Direction sensing pulse input |
+| `GPIO 21` | `SDA` | OLED SH1106 | $I^2C$ Data line |
+| `GPIO 22` | `SCL` | OLED SH1106 | $I^2C$ Clock line |
 
 ---
 
-## 4. Arquitectura de Software del Laboratorio
+## 4. Laboratory Software Architecture
 
-El sistema distribuido separa claramente las tareas de tiempo real en el microcontrolador de las tareas de alto nivel en el computador:
+The distributed architecture cleanly separates low-level micro-ROS tasks on the ESP32 from high-level Python tasks on the PC:
 
 ```mermaid
 flowchart TD
-    subgraph Microcontrolador ["ESP32 (micro-ROS / C++)"]
+    subgraph Microcontroller ["ESP32 (micro-ROS / C++)"]
         PWM_TOPIC["/pwm_input<br>(Float32, %)"] --> MOTOR_NODE(["motor_step_node"])
         MOTOR_NODE --> VEL_RAD["/vel_rad_s<br>(Float32, rad/s)"]
         MOTOR_NODE --> VEL_RPM["/vel_rpm<br>(Float32, rpm)"]
     end
 
-    subgraph Computador ["Computador (ROS 2 / Python)"]
+    subgraph HostPC ["Computer (ROS 2 / Python)"]
         VEL_RAD --> DB_NODE(["step_response_DB<br>(data_logger.py)"])
         PWM_TOPIC -.-> DB_NODE
         VEL_RAD --> GRAPH_NODE(["vel_ang_motor<br>(velocity_monitor.py)"])
@@ -179,70 +179,70 @@ flowchart TD
 ```
 
 > [!NOTE]
-> **Pregunta de reflexión:**
-> ¿Por qué resulta conveniente que la generación de gráficas en tiempo real y el almacenamiento de datos en archivos CSV se ejecuten en el computador y no dentro del ESP32?
+> **Reflection Question:**
+> Why is it advantageous to execute real-time plotting and CSV data logging on the computer rather than inside the microcontroller?
 
 ---
 
-## 5. Flujo de Información
+## 5. Signal and Information Flow
 
-Cuando se aplica un comando de entrada (por ejemplo $u = 50\,\%$):
+When a control command is applied (for instance $u = 50\,\%$):
 
-1. Un nodo de ROS 2 en el PC publica el valor numérico en `/pwm_input`.
-2. El nodo `motor_step_node` en el ESP32 recibe el mensaje a través de micro-ROS.
-3. El executor despacha el callback de suscripción asociado.
-4. El ESP32 aplica la dirección en `IN3`/`IN4` y el ciclo útil PWM en `ENB`.
-5. El puente H L298N suministra la corriente requerida al motor DC.
-6. El motor gira y el encoder genera pulsos digitales A y B.
-7. Las interrupciones de hardware en el ESP32 actualizan el contador de ticks en tiempo real.
-8. Un timer periódico (cada $T_s = 0.1\text{ s}$) calcula la velocidad angular en $\text{rad/s}$ y $\text{rpm}$.
-9. El ESP32 publica los valores en `/vel_rad_s` y `/vel_rpm` y actualiza la pantalla OLED.
-10. Los nodos en el computador reciben las velocidades para graficarlas y guardarlas en un archivo CSV.
+1. A ROS 2 node on the PC publishes the value to `/pwm_input`.
+2. The `motor_step_node` on the ESP32 receives the message via micro-ROS.
+3. The executor dispatches the subscriber callback.
+4. The ESP32 sets the direction pins `IN3`/`IN4` and the PWM duty cycle on `ENB`.
+5. The L298N H-Bridge delivers the corresponding driving current to the motor.
+6. The motor rotates and the encoder generates pulses on channels A and B.
+7. Hardware interrupts on the ESP32 update the atomic tick counter.
+8. A periodic timer (every $T_s = 0.1\text{ s}$) calculates angular velocity in $\text{rad/s}$ and $\text{rpm}$.
+9. The ESP32 publishes on `/vel_rad_s` and `/vel_rpm`, updating the OLED display.
+10. Host nodes receive the velocity data to plot and record the response into a CSV file.
 
-$$\boxed{\text{PWM} \longrightarrow \text{Accionamiento} \longrightarrow \text{Movimiento} \longrightarrow \text{Encoder} \longrightarrow \text{Velocidad estimada} \longrightarrow \text{Publicación ROS 2}}$$
-
----
-
-## 6. Diseño del Nodo micro-ROS (`motor_step_node`)
-
-### Responsabilidades del nodo `motor_step_node`:
-1. Recibir el comando de PWM desde el tópico `/pwm_input`.
-2. Saturar la entrada dentro del rango seguro $[-100.0, 100.0]\,\%$.
-3. Configurar los pines de dirección `IN3` e `IN4`.
-4. Generar el ciclo útil PWM mediante el periférico LEDC del ESP32.
-5. Adquirir las transiciones del encoder por interrupciones de hardware.
-6. Calcular la velocidad angular en $\text{rad/s}$ y en $\text{rpm}$ cada periodo de muestreo $T_s$.
-7. Publicar en los tópicos `/vel_rad_s` y `/vel_rpm`.
-8. Refrescar localmente las mediciones en la pantalla OLED.
-
-### Lo que NO debe hacer el nodo:
-* No debe generar gráficas con librerías pesadas.
-* No debe escribir archivos CSV ni gestionar sistemas de archivos.
-* No debe ejecutar algoritmos de identificación offline.
+$$\boxed{\text{PWM} \longrightarrow \text{Actuation} \longrightarrow \text{Motion} \longrightarrow \text{Encoder} \longrightarrow \text{Estimated Velocity} \longrightarrow \text{ROS 2 Topics}}$$
 
 ---
 
-## 7. Arquitectura Temporal del Nodo
+## 6. micro-ROS Node Design (`motor_step_node`)
 
-| Evento | Mecanismo | Acción Ejecutada |
+### Node Responsibilities:
+1. Receive PWM commands from `/pwm_input`.
+2. Clamp input within the safe range $[-100.0, 100.0]\,\%$.
+3. Set direction pins `IN3` and `IN4`.
+4. Generate the PWM signal via ESP32 LEDC hardware.
+5. Capture encoder transitions via hardware interrupts.
+6. Compute angular velocity in $\text{rad/s}$ and $\text{rpm}$ every sampling period $T_s$.
+7. Publish on `/vel_rad_s` and `/vel_rpm`.
+8. Refresh local diagnostics on the OLED display.
+
+### What the Node Must NOT Do:
+* Do not render graphical user interfaces or plots.
+* Do not write files or manage local file systems.
+* Do not run offline mathematical identification algorithms.
+
+---
+
+## 7. Node Temporal Architecture
+
+| Event | Mechanism | Executed Action |
 | :--- | :--- | :--- |
-| **Llega nuevo PWM** | Callback de suscripción ROS | Actualizar la referencia de entrada y configurar pines de potencia |
-| **Flanco del encoder** | ISR (*Interrupt Service Routine*) | Incrementar o decrementar el contador atómico de ticks |
-| **Cada $T_s = 100\text{ ms}$** | Timer periódico micro-ROS | Calcular $\Delta N$, estimar $\omega$ y $n$, publicar tópicos y refrescar OLED |
-| **Eventos disponibles** | Executor micro-ROS | Coordinar la ejecución ordenada de callbacks y timers |
+| **New PWM message received** | ROS Subscription Callback | Update input reference and configure driver pins |
+| **Encoder edge detected** | Hardware ISR (*Interrupt Service Routine*) | Increment or decrement atomic tick counter |
+| **Every $T_s = 100\text{ ms}$** | micro-ROS Periodic Timer | Calculate $\Delta N$, estimate $\omega$ and $n$, publish topics, refresh OLED |
+| **Pending micro-ROS events** | micro-ROS Executor | Coordinate the non-blocking execution of callbacks and timers |
 
-### 7.1. Callback de Suscripción
-Se ejecuta de forma asíncrona cuando un mensaje llega al tópico `/pwm_input`:
+### 7.1. Subscription Callback
+Executes asynchronously when a message arrives on `/pwm_input`:
 
-> `Mensaje en /pwm_input` $\longrightarrow$ `Callback` $\longrightarrow$ `Actualización de PWM y dirección`
+> `Message on /pwm_input` $\longrightarrow$ `Callback` $\longrightarrow$ `Update PWM and direction`
 
-### 7.2. Interrupciones e ISR (Encoder)
-El encoder genera pulsos mecánicos rápidos que no pueden esperarse mediante lecturas secuenciales en un bucle (*polling*), pues se perderían cuentas durante otras operaciones:
+### 7.2. Hardware Interrupts and ISR (Encoder)
+Encoder pulses occur rapidly as a direct consequence of shaft motion and must never be polled in a software loop:
 
-> `Flanco en Canal A` $\longrightarrow$ `ISR de hardware` $\longrightarrow$ `Actualización de encoder_count`
+> `Edge on Channel A` $\longrightarrow$ `Hardware ISR` $\longrightarrow$ `Update encoder_count`
 
 ```cpp
-// Declaración de variable modificada en ISR
+// Volatile declaration for variable updated in ISR
 volatile int32_t encoder_count = 0;
 
 void IRAM_ATTR encoderISR() {
@@ -257,157 +257,157 @@ void IRAM_ATTR encoderISR() {
 ```
 
 > [!CAUTION]
-> Una ISR debe ser lo más breve y rápida posible. Nunca se deben incluir publicaciones ROS, retardos (`delay`), cálculos trigonométricos complejos ni escrituras en displays dentro de una ISR.
+> An ISR must be as short and fast as possible. Never include ROS publishers, `delay()` calls, complex floating-point math, or display updates inside an ISR.
 
-### 7.3. Timer Periódico ($T_s = 0.1\text{ s}$)
-El cálculo de velocidad requiere un intervalo de tiempo conocido:
+### 7.3. Periodic Timer ($T_s = 0.1\text{ s}$)
+Velocity calculation requires a known, fixed time window:
 
-> `Cada` $T_s$ $\longrightarrow$ `Leer contador protegido` $\longrightarrow$ `Calcular` $\omega$ `y` $n$ $\longrightarrow$ `Publicar tópicos`
+> `Every` $T_s$ $\longrightarrow$ `Read protected count` $\longrightarrow$ `Calculate` $\omega$ `and` $n$ $\longrightarrow$ `Publish topics`
 
 $$T_s = 0.1\text{ s} \implies f_s = \frac{1}{T_s} = 10\text{ Hz}$$
 
 ---
 
-## 8. Diseño de Interfaces (Contrato de Tópicos)
+## 8. Interface Design (Topic Contract)
 
-| Tópico | Dirección (respecto al ESP32) | Tipo de Mensaje | Unidades | Propósito |
+| Topic | Direction (rel. to ESP32) | Message Type | Units | Purpose |
 | :--- | :---: | :---: | :---: | :--- |
-| `/pwm_input` | Entrada | `std_msgs/msg/Float32` | $\%$ | Comando de control aplicado al puente H ($-100.0$ a $100.0\,\%$) |
-| `/vel_rad_s` | Salida | `std_msgs/msg/Float32` | $\text{rad/s}$ | Velocidad angular estimada del eje |
-| `/vel_rpm` | Salida | `std_msgs/msg/Float32` | $\text{rpm}$ | Velocidad angular para monitoreo y visualización |
+| `/pwm_input` | Input | `std_msgs/msg/Float32` | $\%$ | Control command sent to H-Bridge ($-100.0$ to $100.0\,\%$) |
+| `/vel_rad_s` | Output | `std_msgs/msg/Float32` | $\text{rad/s}$ | Estimated shaft angular velocity |
+| `/vel_rpm` | Output | `std_msgs/msg/Float32` | $\text{rpm}$ | Shaft angular velocity for monitoring |
 
 ---
 
-## 9. Lectura del Encoder y Estimación de Velocidad
+## 9. Encoder Sensing and Velocity Estimation
 
-El encoder incremental no entrega velocidad directamente, sino transiciones de pulso:
+The incremental encoder produces pulse transitions rather than velocity directly:
 
-$$\boxed{\text{Movimiento mecánico} \longrightarrow \text{Pulsos A/B} \longrightarrow \text{Conteo de ticks} \longrightarrow \text{Estimación de velocidad}}$$
+$$\boxed{\text{Mechanical Motion} \longrightarrow \text{A/B Pulses} \longrightarrow \text{Tick Counting} \longrightarrow \text{Velocity Estimation}}$$
 
-Definimos $N_{\text{rev}}$ como el número experimental de cuentas por revolución completa del eje de salida:
+Let $N_{\text{rev}}$ be the experimental count per full output shaft revolution:
 
 $$\Delta\theta_{\text{count}} = \frac{2\pi}{N_{\text{rev}}}\quad [\text{rad/tick}]$$
 
-Si durante un intervalo $\Delta t$ se registran $\Delta N[k] = N[k] - N[k-1]$ cuentas:
+If $\Delta N[k] = N[k] - N[k-1]$ counts are accumulated during $\Delta t$:
 
 $$\boxed{\omega[k] = \frac{2\pi \Delta N[k]}{N_{\text{rev}} \Delta t}\quad [\text{rad/s}]}$$
 
 $$\boxed{n[k] = \frac{60 \Delta N[k]}{N_{\text{rev}} \Delta t} = \omega[k] \left(\frac{60}{2\pi}\right)\quad [\text{rpm}]}$$
 
 > [!WARNING]
-> Un error en el valor de $N_{\text{rev}}$ introduce un error sistemático de escala en toda la velocidad calculada y en los modelos identificados posteriormente.
+> An error in $N_{\text{rev}}$ introduces a direct scale error into all computed velocities and subsequent transfer function models.
 
 ---
 
-## 10. Control del Puente H L298N
+## 10. L298N H-Bridge Driver Control
 
-El ESP32 conmuta las señales de control lógico y modulación:
+The ESP32 manages direction and speed modulation:
 
-$$\boxed{\text{ESP32 (LEDC)} \longrightarrow \text{Puente H L298N} \longrightarrow \text{Motor DC}}$$
+$$\boxed{\text{ESP32 (LEDC)} \longrightarrow \text{L298N Driver} \longrightarrow \text{DC Motor}}$$
 
-| Entrada $u$ ($\%$) | `IN3` | `IN4` | PWM (`ENB`) | Comportamiento |
+| Input $u$ ($\%$) | `IN3` | `IN4` | PWM (`ENB`) | Behavior |
 | :---: | :---: | :---: | :---: | :--- |
-| $u > 0$ | `LOW` | `HIGH` | $PWM_{\text{raw}}$ | Giro en sentido positivo |
-| $u < 0$ | `HIGH` | `LOW` | $PWM_{\text{raw}}$ | Giro en sentido negativo |
-| $u = 0$ | `LOW` | `LOW` | $0$ | Motor detenido / frenado |
+| $u > 0$ | `LOW` | `HIGH` | $PWM_{\text{raw}}$ | Forward / Positive Rotation |
+| $u < 0$ | `HIGH` | `LOW` | $PWM_{\text{raw}}$ | Reverse / Negative Rotation |
+| $u = 0$ | `LOW` | `LOW` | $0$ | Motor stopped / active brake |
 
-Con resolución de 8 bits ($PWM_{\max} = 2^8 - 1 = 255$):
+For 8-bit resolution ($PWM_{\max} = 2^8 - 1 = 255$):
 
 $$\boxed{PWM_{\text{raw}} = \text{int}\left(\frac{|u|}{100} \cdot 255\right)}$$
 
 ---
 
-## 11. Implementación del Nodo en el Repositorio
+## 11. Implementation in the Repository
 
-El código fuente del firmware se encuentra ubicado en el repositorio en:
+The firmware source code is located at:
 
-* **Configuración del proyecto PlatformIO:** [`firmware/esp32_motor_step/platformio.ini`](../../firmware/esp32_motor_step/platformio.ini)
-* **Código fuente del firmware en C++:** [`firmware/esp32_motor_step/src/main.cpp`](../../firmware/esp32_motor_step/src/main.cpp)
+* **PlatformIO Configuration:** [`firmware/esp32_motor_step/platformio.ini`](../../firmware/esp32_motor_step/platformio.ini)
+* **C++ Firmware Source:** [`firmware/esp32_motor_step/src/main.cpp`](../../firmware/esp32_motor_step/src/main.cpp)
 
 ---
 
-## 12. Integración y Validación Experimental con ROS 2
+## 12. Integration and Experimental Verification with ROS 2
 
-### 12.1. Iniciar el micro-ROS Agent en el PC
+### 12.1. Start the micro-ROS Agent on PC
 
 ```bash
 source /opt/ros/humble/setup.bash
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 ```
 
-### 12.2. Verificar Grafo de Nodos y Tópicos
+### 12.2. Verify Node Graph and Topics
 
 ```bash
-# Comprobar nodo activo
+# Verify active node
 ros2 node list
-# Debe retornar: /motor_step_node
+# Output: /motor_step_node
 
-# Comprobar tópicos
+# Verify topics
 ros2 topic list
-# Debe incluir: /pwm_input, /vel_rad_s, /vel_rpm
+# Output: /pwm_input, /vel_rad_s, /vel_rpm
 
-# Comprobar frecuencia de publicación
+# Verify publishing frequency
 ros2 topic hz /vel_rad_s
-# Debe reportar una tasa promedio estable de ~10 Hz
+# Output: stable average rate of ~10 Hz
 ```
 
-### 12.3. Accionamiento de Prueba
+### 12.3. Actuation Test
 
 ```bash
-# Aplicar 30 % PWM
+# Apply 30 % PWM
 ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: 30.0}" --once
 
-# Detener el motor
+# Stop motor
 ros2 topic pub /pwm_input std_msgs/msg/Float32 "{data: 0.0}" --once
 ```
 
 ---
 
-## 13. Nodos ROS 2 en el Computador
+## 13. Host ROS 2 Nodes on PC
 
-La arquitectura contempla nodos en Python dentro del paquete ROS 2 del repositorio:
+The Python host packages inside the workspace handle data collection and visualization:
 
-1. **Monitor gráfico en tiempo real:**
-   * Archivo: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py)
-   * Tópico suscrito: `/vel_rad_s` o `/vel_rpm`.
+1. **Real-time Graphical Monitor:**
+   * File: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/velocity_monitor.py)
+   * Subscribed topic: `/vel_rad_s` or `/vel_rpm`.
 
-2. **Registrador de datos a CSV:**
-   * Archivo: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py)
-   * Tópicos suscritos: `/vel_rad_s` y `/pwm_input`.
-   * Estructura generada: `Time (s)`, `Angular Velocity (rad/s)`, `PWM (%)`.
+2. **CSV Data Logger:**
+   * File: [`ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py`](../../ros2_ws/src/dc_motor_experiments/dc_motor_experiments/data_logger.py)
+   * Subscribed topics: `/vel_rad_s` and `/pwm_input`.
+   * CSV Columns: `Time (s)`, `Angular Velocity (rad/s)`, `PWM (%)`.
 
 ---
 
-## 14. Diagnóstico Básico por Capas
+## 14. Basic Layered Diagnostics
 
-| Síntoma | Causa Probable | Verificación / Solución |
+| Symptom | Probable Cause | Verification / Fix |
 | :--- | :--- | :--- |
-| El nodo no aparece en `ros2 node list` | Fallo de conexión serie o Agent no iniciado | Verificar cable USB, puerto `/dev/ttyUSB0` y permisos `chmod 666 /dev/ttyUSB0`. |
-| Nodo visible pero velocidad siempre en cero | Encoder sin alimentación o pines invertidos | Revisar conexión de 3.3V/5V del encoder, interrupciones en `GPIO 32/33`. |
-| El motor no gira ante comando PWM | Alimentación de potencia o puente H deshabilitado | Comprobar fuente de 12V externa, masa común con ESP32 y jumper de `ENB`. |
-| Velocidad calculada errónea o con escala incorrecta | $N_{\text{rev}}$ no coincide con la calibración | Ejecutar la rutina de calibración de pulsos por revolución. |
-| El signo de velocidad no coincide con el sentido de giro | Canales A y B invertidos físicamente o en código | Intercambiar los pines de definición `ENCA` y `ENCB` en el firmware. |
+| Node does not appear in `ros2 node list` | Serial connection failure or Agent not running | Check USB cable, port `/dev/ttyUSB0`, and permissions `chmod 666 /dev/ttyUSB0`. |
+| Node visible but velocity is always zero | Encoder unpowered or channels disconnected | Verify 3.3V/5V encoder supply and GPIO 32/33 wiring. |
+| Motor does not rotate upon PWM command | Missing power supply or driver disabled | Check 12V external power supply, common ground with ESP32, and ENB jumper. |
+| Computed velocity has wrong scale | $N_{\text{rev}}$ does not match calibration | Execute the calibration routine to find true counts per rev. |
+| Velocity sign does not match rotation direction | Encoder channels A and B swapped | Swap `ENCA` and `ENCB` pin definitions in the firmware. |
 
 ---
 
-## 15. Actividades de Laboratorio
+## 15. Laboratory Activities
 
-### Actividad 1: Diseño de Arquitectura
-Dibujar el diagrama de bloques del sistema distribuido identificando claramente la frontera entre el microcontrolador (ESP32) y el computador, sus respectivos nodos, tópicos y mensajes.
+### Activity 1: Architecture Design
+Draw the distributed system block diagram clearly distinguishing the microcontroller (ESP32) from the computer, including nodes, topics, and message types.
 
-### Actividad 2: Calibración del Encoder
-Determinar experimentalmente $N_{\text{rev}}$ girando el eje una revolución completa y promediando múltiples mediciones.
+### Activity 2: Encoder Calibration
+Determine $N_{\text{rev}}$ experimentally by rotating the shaft exactly one full revolution and averaging multiple trials.
 
-### Actividad 3: Integración y Verificación por Capas
-Validar en secuencia: Agent $\rightarrow$ Nodo $\rightarrow$ Tópicos $\rightarrow$ Encoder manual $\rightarrow$ Accionamiento con PWM.
+### Activity 3: Layered Integration
+Validate sequentially: Agent $\rightarrow$ Node $\rightarrow$ Topics $\rightarrow$ Manual Encoder Rotation $\rightarrow$ PWM Actuation.
 
-### Actividad 4: Prueba Experimental de Escalón
-Aplicar un escalón de PWM, almacenar el archivo CSV resultante y analizar el régimen transitorio y el régimen permanente de velocidad angular.
+### Activity 4: Experimental Step Test
+Apply a PWM step command, record the resulting CSV file, and analyze the transient and steady-state velocity behavior.
 
 ---
 
-## 16. Síntesis y Conclusiones
+## 16. Summary and Conclusions
 
-$$\boxed{\text{Comprender la Planta} \longrightarrow \text{Diseñar Interfaces} \longrightarrow \text{Implementar Firmware} \longrightarrow \text{Integrar con ROS 2} \longrightarrow \text{Validar Experimentalmente}}$$
+$$\boxed{\text{Understand Plant} \longrightarrow \text{Design Interfaces} \longrightarrow \text{Implement Firmware} \longrightarrow \text{Integrate with ROS 2} \longrightarrow \text{Experimental Validation}}$$
 
-El nodo `motor_step_node` implementado en el ESP32 constituye el núcleo de instrumentación y actuación sobre el cual se construirán las siguientes fases del proyecto: la identificación experimental paramétrica (FOP / FOPDT) y el diseño e implementación de controladores en lazo cerrado.
+The `motor_step_node` implemented on the ESP32 serves as the instrumentation core for subsequent project stages: experimental parametric identification (FOP / FOPDT) and closed-loop speed controller design.

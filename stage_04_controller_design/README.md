@@ -1,12 +1,12 @@
-# Stage 04: Controller Design (Futuro)
+# Stage 04: Controller Design (Future Stage)
 
-## 🎯 Pregunta Orientadora
-> **¿Qué estructura y parámetros de control satisfacen las especificaciones de desempeño en velocidad?**
+## 🎯 Guiding Question
+> **What control structure and tuning parameters satisfy the desired speed performance specifications?**
 
 ---
 
-## 📌 Objetivos
-1. Diseñar controladores para seguimiento de velocidad angular $\omega(t)$:
-   - **Controlador Clásico:** PI / PID con anti-windup.
-   - **Controlador Inteligente:** Redes Neuronales / Control Difuso (Fuzzy) / Adaptativo.
-2. Simulación y verificación del desempeño temporal (tiempo de establecimiento $t_s$, sobreimpulso $\%OS$, error en estado estable $e_{ss}$).
+## 📌 Objectives
+1. Design feedback controllers for angular velocity tracking $\omega(t)$:
+   - **Classical Control:** PI / PID with anti-windup clamping.
+   - **Intelligent Control:** Neural Networks / Fuzzy Logic / Adaptive Control.
+2. Simulate and analyze dynamic response specifications (settling time $t_s$, overshoot $\%OS$, and steady-state error $e_{ss}$).

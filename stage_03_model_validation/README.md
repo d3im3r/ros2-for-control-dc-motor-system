@@ -1,14 +1,14 @@
-# Stage 03: Model Validation (Próxima etapa)
+# Stage 03: Model Validation (Upcoming Stage)
 
-## 🎯 Pregunta Orientadora
-> **¿El modelo identificado reproduce fielmente el comportamiento de la planta ante entradas no utilizadas durante el ajuste?**
+## 🎯 Guiding Question
+> **Does the identified model faithfully predict plant dynamics when tested against unseen input profiles?**
 
 ---
 
-## 📌 Objetivos
-1. Validar el modelo nominal contra nuevos conjuntos de datos (escalones inversos, escalones concatenados, etc.).
-2. Evaluar métricas cuantitativas de ajuste:
+## 📌 Objectives
+1. Validate the nominal model against new experimental validation datasets (e.g. reverse steps, multi-step staircase profiles).
+2. Compute quantitative goodness-of-fit metrics:
    - **RMSE** (*Root Mean Square Error*).
    - **MAE** (*Mean Absolute Error*).
    - **FIT** (*Goodness of fit percentage*).
-3. Establecer el rango de validez operativa del modelo matemático.
+3. Establish the operational validity boundaries of the continuous-time mathematical model.

@@ -1,26 +1,26 @@
 # Stage 02: System Identification
 
-## 🎯 Pregunta Orientadora
-> **¿Qué modelo representa adecuadamente la dinámica entrada-salida del motor?**
+## 🎯 Guiding Question
+> **What mathematical model accurately represents the input-output dynamics of the motor?**
 
 ---
 
-## 📌 Objetivos
-1. Ejecutar pruebas escalón en lazo abierto a diferentes amplitudes de PWM ($30\%$, $45\%$, $60\%$).
-2. Registrar la curva de reacción temporal $(\omega(t) \text{ vs. } t)$ en archivos CSV de 350 a 400 muestras a $10\text{ Hz}$.
-3. Estimar la ganancia estática $K$, la constante de tiempo dominante $\tau$ y el tiempo de retardo aparente $\theta$.
-4. Construir y comparar modelos FOP ($G_{FOP}(s) = \frac{K}{\tau s + 1}$) y FOPDT ($G_{FOPDT}(s) = \frac{K e^{-\theta s}}{\tau s + 1}$).
-5. Analizar la linealidad del sistema entre los diferentes puntos de operación.
+## 📌 Objectives
+1. Execute open-loop step response tests at different PWM amplitudes ($30\%$, $45\%$, $60\%$).
+2. Record temporal reaction curves $(\omega(t) \text{ vs. } t)$ in CSV datasets of 350 to 400 samples at $10\text{ Hz}$.
+3. Estimate static gain $K$, dominant time constant $\tau$, and apparent delay $\theta$.
+4. Construct and compare FOP ($G_{\mathrm{FOP}}(s) = \frac{K}{\tau s + 1}$) and FOPDT ($G_{\mathrm{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}$) models.
+5. Analyze system linearity across different operating points.
 
 ---
 
-## 🚀 Ejecución de Pruebas
-Para lanzar la adquisición automatizada con un escalón del $45\%$:
+## 🚀 Running Experiments
+To launch automated acquisition with a $45\%$ PWM step:
 ```bash
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=45.0
 ```
 
-## 📊 Scripts de Análisis Offline
+## 📊 Offline Analysis Scripts
 ```bash
 python3 stage_02_system_identification/analysis/identify_fop.py
 python3 stage_02_system_identification/analysis/identify_fopdt.py

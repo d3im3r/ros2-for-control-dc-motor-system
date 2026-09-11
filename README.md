@@ -1,7 +1,7 @@
 <div align="center">
 
 # 🚀 ROS 2 for Control: DC Motor System
-### Plataforma de Instrumentación, Identificación Paramétrica y Control en Lazo Cerrado con ESP32 (micro-ROS)
+### Instrumentation, Parametric Identification, and Closed-Loop Control Platform with ESP32 (micro-ROS)
 
 [![ROS 2 Humble](https://img.shields.io/badge/ROS_2-Humble_Hawksbill-22314E?logo=ros&logoColor=white)](https://docs.ros.org/en/humble/)
 [![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04_LTS-E95420?logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/22.04/)
@@ -11,129 +11,129 @@
 [![License Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 <p align="center">
-Repositorio integral de <b>ROS 2 (Humble)</b> y firmware para <b>ESP32 (micro-ROS)</b> orientado al <b>diseño, instrumentación, identificación paramétrica experimental y control de velocidad en lazo cerrado</b> de una planta de motor DC mediante pruebas de respuesta escalón.
+Comprehensive repository of <b>ROS 2 (Humble)</b> and <b>ESP32 firmware (micro-ROS)</b> focused on the <b>design, instrumentation, experimental parametric identification, and closed-loop speed control</b> of a DC motor plant through automated step response tests.
 </p>
 
 </div>
 
 ---
 
-## 📑 Tabla de Contenidos
+## 📑 Table of Contents
 
-1. [🗺️ Roadmap Metodológico por Stages](#️-roadmap-metodológico-por-stages)
-2. [📥 Paso 1: Descarga e Instalación del Workspace ROS 2 en el PC](#-paso-1-descarga-e-instalación-del-workspace-ros-2-en-el-pc)
-3. [🔌 Paso 2: Configuración del Hardware y Firmware en el ESP32](#-paso-2-configuración-del-hardware-y-firmware-en-el-esp32)
-4. [🤖 Paso 3: Conexión Serial con el micro-ROS Agent](#-paso-3-conexión-serial-con-el-micro-ros-agent)
-5. [🚀 Paso 4: Ejecución Experimental por Stages](#-paso-4-ejecución-experimental-por-stages)
-6. [⏱️ Perfil Temporal de la Prueba Escalón (Stage 02)](#️-perfil-temporal-de-la-prueba-escalón-stage-02)
-7. [⚙️ Arquitectura de Software, Nodos y Tópicos](#️-arquitectura-de-software-nodos-y-tópicos)
-8. [📊 Formato de Datos (CSV) y Modelado Matemático (FOP / FOPDT)](#-formato-de-datos-csv-y-modelado-matemático-fop--fopdt)
-9. [📁 Estructura del Repositorio](#-estructura-del-repositorio)
-10. [🔧 Solución de Problemas (Troubleshooting)](#-solución-de-problemas-troubleshooting)
-11. [👥 Autores y Licencia](#-autores-y-licencia)
+1. [🗺️ Methodological Roadmap by Stages](#️-methodological-roadmap-by-stages)
+2. [📥 Step 1: Download and Build the ROS 2 Workspace on PC](#-step-1-download-and-build-the-ros-2-workspace-on-pc)
+3. [🔌 Step 2: Hardware and Firmware Setup on ESP32](#-step-2-hardware-and-firmware-setup-on-esp32)
+4. [🤖 Step 3: Serial Connection with micro-ROS Agent](#-step-3-serial-connection-with-micro-ros-agent)
+5. [🚀 Step 4: Experimental Execution by Stages](#-step-4-experimental-execution-by-stages)
+6. [⏱️ Step Response Temporal Profile (Stage 02)](#️-step-response-temporal-profile-stage-02)
+7. [⚙️ Software Architecture, Nodes, and Topics](#️-software-architecture-nodes-and-topics)
+8. [📊 Data Format (CSV) and Mathematical Modeling (FOP / FOPDT)](#-data-format-csv-and-mathematical-modeling-fop--fopdt)
+9. [📁 Repository Structure](#-repository-structure)
+10. [🔧 Troubleshooting](#-troubleshooting)
+11. [👥 Authors and License](#-authors-and-license)
 
 ---
 
-## 🗺️ Roadmap Metodológico por Stages
+## 🗺️ Methodological Roadmap by Stages
 
-El proyecto está organizado siguiendo una metodología de control incremental y modular:
+The project is organized following an incremental and modular control engineering methodology:
 
-| Stage | Estado | Título | Pregunta Clave | Entregables / Archivos |
+| Stage | Status | Title | Key Question | Deliverables / Files |
 | :---: | :---: | :--- | :--- | :--- |
-| **00** | <img src="https://img.shields.io/badge/Completado-brightgreen?style=flat-square" alt="Completado"> | **System Design** | *¿Cómo estructurar el sistema distribuido?* | [Guía 0](docs/guides/Inteligente_guia0.md), arquitectura y contrato de tópicos. |
-| **01** | <img src="https://img.shields.io/badge/Completado-brightgreen?style=flat-square" alt="Completado"> | **Motor Instrumentation** | *¿Puedo accionar y medir correctamente?* | [Guía 1](docs/guides/Inteligente_guia1.md), calibración ($N_{rev}=960$), bringup Stage 01. |
-| **02** | <img src="https://img.shields.io/badge/En_Progreso-orange?style=flat-square" alt="En Progreso"> | **System Identification** | *¿Qué modelo describe la dinámica del motor?* | [Guía 2](docs/guides/Inteligente_guia2.md), curvas de reacción ($30\\%, 45\\%, 60\\%$), modelos FOP y FOPDT. |
-| **03** | <img src="https://img.shields.io/badge/Pendiente-lightgrey?style=flat-square" alt="Pendiente"> | **Model Validation** | *¿El modelo predice datos no ensayados?* | Métricas RMSE/MAE, ajuste porcentual FIT y modelo nominal. |
-| **04** | <img src="https://img.shields.io/badge/Pendiente-lightgrey?style=flat-square" alt="Pendiente"> | **Controller Design** | *¿Qué controlador cumple los requerimientos?* | Diseño PI/PID/Inteligente y simulación dinámica. |
-| **05** | <img src="https://img.shields.io/badge/Pendiente-lightgrey?style=flat-square" alt="Pendiente"> | **Closed-Loop Control** | *¿El lazo cerrado físico responde adecuadamente?* | Validación experimental en tiempo real y rechazo a perturbaciones. |
+| **00** | <img src="https://img.shields.io/badge/Completed-brightgreen?style=flat-square" alt="Completed"> | **System Design** | *How to structure the distributed system?* | [Guide 0](docs/guides/Inteligente_guia0.md), architecture, and topic contract. |
+| **01** | <img src="https://img.shields.io/badge/Completed-brightgreen?style=flat-square" alt="Completed"> | **Motor Instrumentation** | *Can I actuate and measure reliably?* | [Guide 1](docs/guides/Inteligente_guia1.md), encoder calibration ($N_{rev}=960$), bringup Stage 01. |
+| **02** | <img src="https://img.shields.io/badge/In_Progress-orange?style=flat-square" alt="In Progress"> | **System Identification** | *What model describes the motor dynamics?* | [Guide 2](docs/guides/Inteligente_guia2.md), reaction curves ($30\\%, 45\\%, 60\\%$), FOP and FOPDT models. |
+| **03** | <img src="https://img.shields.io/badge/Pending-lightgrey?style=flat-square" alt="Pending"> | **Model Validation** | *Does the model predict unseen data?* | RMSE/MAE metrics, percentage FIT, and nominal model selection. |
+| **04** | <img src="https://img.shields.io/badge/Pending-lightgrey?style=flat-square" alt="Pending"> | **Controller Design** | *What controller fulfills the requirements?* | PI/PID/Intelligent design and dynamic simulation. |
+| **05** | <img src="https://img.shields.io/badge/Pending-lightgrey?style=flat-square" alt="Pending"> | **Closed-Loop Control** | *Does the physical closed-loop system track references?* | Real-time experimental validation and disturbance rejection. |
 
 ---
 
-## 📥 Paso 1: Descarga e Instalación del Workspace ROS 2 en el PC
+## 📥 Step 1: Download and Build the ROS 2 Workspace on PC
 
-Sigue estos pasos en tu terminal de Ubuntu / Pop!_OS para clonar y compilar el espacio de trabajo:
+Follow these steps in your Ubuntu / Pop!_OS terminal to clone and build the workspace:
 
-### 1.1. Clonar el repositorio
+### 1.1. Clone the repository
 ```bash
 git clone https://github.com/d3im3r/ros2-for-control-dc-motor-system.git
 cd ros2-for-control-dc-motor-system
 ```
 
-### 1.2. Instalar dependencias del sistema
+### 1.2. Install system dependencies
 ```bash
 sudo apt update
 sudo apt install -y python3-matplotlib python3-pip python3-numpy python3-scipy python3-colcon-common-extensions ros-humble-micro-ros-agent
 ```
 
-### 1.3. Compilar los paquetes de ROS 2
+### 1.3. Build ROS 2 packages
 ```bash
 cd ros2_ws
 colcon build --symlink-install
 ```
 
-### 1.4. Cargar el entorno (*Sourcing*)
+### 1.4. Source the environment
 ```bash
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 ```
 
-> 💡 **Tip:** Para cargar el entorno automáticamente en cada nueva terminal:
+> 💡 **Tip:** To automatically source the workspace in every new terminal:
 > ```bash
 > echo "source /home/$USER/ros2-for-control-dc-motor-system/ros2_ws/install/setup.bash" >> ~/.bashrc
 > ```
 
 ---
 
-## 🔌 Paso 2: Configuración del Hardware y Firmware en el ESP32
+## 🔌 Step 2: Hardware and Firmware Setup on ESP32
 
-El firmware micro-ROS corre sobre el microcontrolador ESP32 y se encarga de la interacción directa con el hardware a través de interrupciones, timers y modulación LEDC.
+The micro-ROS firmware runs on the ESP32 microcontroller and handles direct hardware interaction via hardware interrupts, timers, and LEDC modulation.
 
-### 2.1. Conexiones de Hardware y Pines
+### 2.1. Hardware Connections and Pinout
 
-| Componente | Función | Pin ESP32 | Descripción |
+| Component | Function | ESP32 Pin | Description |
 | :--- | :--- | :---: | :--- |
-| **Encoder Canal A** | Entrada pulsos A | `GPIO 32` | Interrupción de hardware (`CHANGE`) |
-| **Encoder Canal B** | Entrada pulsos B | `GPIO 33` | Determinación de sentido de giro |
-| **Puente H L298N** | PWM Canal B (`ENB`) | `GPIO 25` | Modulación LEDC ($500\text{ Hz}$, $8\text{ bits}$, $0-255$) |
-| **Puente H L298N** | Sentido de giro (`IN3`) | `GPIO 27` | Nivel lógico de dirección |
-| **Puente H L298N** | Sentido de giro (`IN4`) | `GPIO 26` | Nivel lógico de dirección |
-| **Display OLED SH1106** | $I^2C$ SDA | `GPIO 21` | Línea de datos OLED ($128\times 64$) |
-| **Display OLED SH1106** | $I^2C$ SCL | `GPIO 22` | Línea de reloj OLED |
+| **Encoder Channel A** | Pulse input A | `GPIO 32` | Hardware interrupt (`CHANGE`) |
+| **Encoder Channel B** | Pulse input B | `GPIO 33` | Direction sensing |
+| **L298N H-Bridge** | PWM Channel B (`ENB`) | `GPIO 25` | LEDC modulation ($500\text{ Hz}$, $8\text{ bits}$, $0-255$) |
+| **L298N H-Bridge** | Direction (`IN3`) | `GPIO 27` | Direction logic level |
+| **L298N H-Bridge** | Direction (`IN4`) | `GPIO 26` | Direction logic level |
+| **OLED SH1106 Display** | $I^2C$ SDA | `GPIO 21` | OLED data line ($128\times 64$) |
+| **OLED SH1106 Display** | $I^2C$ SCL | `GPIO 22` | OLED clock line |
 
-> ⚙️ **Calibración Experimental del Encoder:** $N_{\mathrm{rev}} = 960\ \text{ticks/rev}$.
+> ⚙️ **Experimental Encoder Calibration:** $N_{\mathrm{rev}} = 960\ \text{ticks/rev}$.
 
-### 2.2. Flujo de Trabajo en PlatformIO (Extensión de VS Code)
+### 2.2. PlatformIO Workflow (VS Code Extension)
 
-Los archivos del firmware están organizados en el directorio [`firmware/esp32_motor_step/`](firmware/esp32_motor_step):
+Firmware files are organized in the [`firmware/esp32_motor_step/`](firmware/esp32_motor_step) directory:
 
-* [`firmware/esp32_motor_step/platformio.ini`](firmware/esp32_motor_step/platformio.ini): Archivo de configuración con plataforma ESP32, framework Arduino y dependencias de micro-ROS y OLED.
-* [`firmware/esp32_motor_step/src/main.cpp`](firmware/esp32_motor_step/src/main.cpp): Firmware completo con interrupción de encoder por hardware, control de puente H por LEDC, display OLED SH1106 y publicadores/suscriptores micro-ROS.
+* [`firmware/esp32_motor_step/platformio.ini`](firmware/esp32_motor_step/platformio.ini): Environment configuration for ESP32, Arduino framework, micro-ROS, and OLED libraries.
+* [`firmware/esp32_motor_step/src/main.cpp`](firmware/esp32_motor_step/src/main.cpp): Complete firmware with hardware encoder interrupts, LEDC H-Bridge PWM control, SH1106 OLED display, and micro-ROS publishers/subscribers.
 
-#### Procedimiento para Compilar y Flashear con VS Code:
+#### Instructions to Build and Flash with VS Code:
 
-1. **Instalar la extensión:**
-   * En VS Code, ve a la pestaña de **Extensiones** (`Ctrl+Shift+X`), busca **PlatformIO IDE** e instálala.
+1. **Install the Extension:**
+   * In VS Code, go to the **Extensions** tab (`Ctrl+Shift+X`), search for **PlatformIO IDE**, and install it.
 
-2. **Opción Recomendada — Abrir directamente la carpeta del firmware:**
-   * En VS Code: *Archivo (File)* > *Abrir carpeta (Open Folder...)* y selecciona `ros2-for-control-dc-motor-system/firmware/esp32_motor_step`.
+2. **Recommended Option — Open the firmware folder directly:**
+   * In VS Code: *File* > *Open Folder...* and select `ros2-for-control-dc-motor-system/firmware/esp32_motor_step`.
 
-3. **Opción Alternativa — Crear un proyecto nuevo y reemplazar los archivos:**
-   * Abre **PlatformIO Home** (`icono de hormiga` > `PIOHome` > `Open`).
-   * Haz clic en **+ New Project**.
-   * Nombre: `esp32_motor_step`.
-   * Board: `Espressif ESP32 Dev Module` (o `esp32dev`).
+3. **Alternative Option — Create a new project and replace files:**
+   * Open **PlatformIO Home** (`Ant icon` > `PIOHome` > `Open`).
+   * Click on **+ New Project**.
+   * Name: `esp32_motor_step`.
+   * Board: `Espressif ESP32 Dev Module` (or `esp32dev`).
    * Framework: `Arduino`.
-   * Una vez creado el proyecto:
-     * Copia y **reemplaza** el archivo [`platformio.ini`](firmware/esp32_motor_step/platformio.ini) en la raíz de tu proyecto PlatformIO.
-     * Copia y **reemplaza** el archivo [`src/main.cpp`](firmware/esp32_motor_step/src/main.cpp) dentro de la carpeta `src/`.
+   * Once created:
+     * Copy and **replace** [`platformio.ini`](firmware/esp32_motor_step/platformio.ini) at the root of your PlatformIO project.
+     * Copy and **replace** [`src/main.cpp`](firmware/esp32_motor_step/src/main.cpp) inside the `src/` folder.
 
-4. **Compilación y Subida al ESP32:**
-   * Conecta tu tarjeta ESP32 por USB al computador.
-   * En la barra de estado inferior de VS Code (o en el panel de PlatformIO):
-     * Haz clic en **Build** (`✔`) para compilar (PlatformIO descargará e integrará automáticamente micro-ROS y las librerías de Adafruit).
-     * Haz clic en **Upload** (`→`) para cargar el firmware al ESP32.
+4. **Build and Upload to ESP32:**
+   * Connect your ESP32 board to the PC via USB.
+   * On the bottom status bar (or PlatformIO side menu):
+     * Click **Build** (`✔`) to compile (PlatformIO will automatically download and integrate micro-ROS and Adafruit libraries).
+     * Click **Upload** (`→`) to flash the firmware to the ESP32.
 
-### 2.3. Configuración en PlatformIO (`platformio.ini`)
+### 2.3. PlatformIO Configuration (`platformio.ini`)
 
 ```ini
 [env:esp32dev]
@@ -157,94 +157,94 @@ build_flags =
 
 ---
 
-## 🤖 Paso 3: Conexión Serial con el micro-ROS Agent
+## 🤖 Step 3: Serial Connection with micro-ROS Agent
 
-Una vez cargado el firmware en el ESP32 y conectado mediante el cable USB al PC:
+Once the firmware is flashed and the ESP32 is connected via USB:
 
-### 3.1. Asignar permisos al puerto serial
+### 3.1. Set serial port permissions
 ```bash
 sudo chmod 666 /dev/ttyUSB0
-# o añadir tu usuario al grupo dialout:
+# or add your user to the dialout group:
 sudo usermod -a -G dialout $USER
 ```
-*(Si tu dispositivo aparece como `/dev/ttyACM0`, usa ese puerto).*
+*(If your device shows up as `/dev/ttyACM0`, use that port instead).*
 
-### 3.2. Iniciar el Agente micro-ROS por Serial (115200 baudios)
+### 3.2. Launch the micro-ROS Agent over Serial (115200 baud)
 ```bash
 source /opt/ros/humble/setup.bash
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 ```
 
-### 3.3. Verificar la comunicación
-En otra terminal, comprueba que el nodo y los tópicos estén activos:
+### 3.3. Verify Communication
+In another terminal, check that the node and topics are active:
 ```bash
 ros2 node list
-# Debe mostrar: /motor_step_node
+# Expected output: /motor_step_node
 
 ros2 topic list
-# Debe mostrar: /pwm_input, /vel_rad_s, /vel_rpm
+# Expected output: /pwm_input, /vel_rad_s, /vel_rpm
 
 ros2 topic hz /vel_rad_s
-# Debe reportar una frecuencia estable de ~10 Hz (Ts = 0.1 s)
+# Expected rate: stable ~10 Hz (Ts = 0.1 s)
 ```
 
 ---
 
-## 🚀 Paso 4: Ejecución Experimental por Stages
+## 🚀 Step 4: Experimental Execution by Stages
 
-### 4.1. Stage 01: Instrumentación y Validación de la Planta
+### 4.1. Stage 01: Motor Instrumentation and Bringup
 
-Verifica la respuesta del motor y la consistencia de los tópicos:
+Verify motor response and topic consistency:
 ```bash
 ros2 launch dc_motor_bringup stage_01_instrumentation.launch.py
 ```
 
-### 4.2. Stage 02: Pruebas Escalón Automatizadas (Identificación)
+### 4.2. Stage 02: Automated Step Response Experiments (Identification)
 
-El launch de Stage 02 inicia en simultáneo: el generador de perfil temporal, el registrador de datos CSV y el monitor visual interactivo con Matplotlib:
+Stage 02 launch starts concurrently: the temporal profile generator, the CSV data logger, and the interactive Matplotlib real-time monitor:
 
 ```bash
-# Ensayo 1: Escalón del 30 % PWM
+# Experiment 1: 30 % PWM Step
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=30.0
 
-# Ensayo 2: Escalón del 45 % PWM
+# Experiment 2: 45 % PWM Step
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=45.0
 
-# Ensayo 3: Escalón del 60 % PWM
+# Experiment 3: 60 % PWM Step
 ros2 launch dc_motor_bringup stage_02_identification.launch.py step:=60.0
 ```
 
-> **Parámetros configurables del Launch:**
-> - `step`: Amplitud del escalón en porcentaje `[-100.0, 100.0]`. Por defecto: `0.0`.
-> - `total_time`: Duración total de la prueba en segundos. Por defecto: `40.0`.
+> **Configurable Launch Arguments:**
+> - `step`: Step amplitude in percentage `[-100.0, 100.0]`. Default: `0.0`.
+> - `total_time`: Total experiment duration in seconds. Default: `40.0`.
 
 ---
 
-## ⏱️ Perfil Temporal de la Prueba Escalón (Stage 02)
+## ⏱️ Step Response Temporal Profile (Stage 02)
 
-El ciclo de prueba estándar está configurado para una captura total de **40.0 segundos (400 muestras a 10 Hz)**:
+The standard test cycle is configured for a total acquisition of **40.0 seconds (400 samples at 10 Hz)**:
 
-| Fase | Intervalo de Tiempo | PWM (\%) | Propósito |
+| Phase | Time Interval | PWM (\%) | Purpose |
 | :--- | :---: | :---: | :--- |
-| **1. Reposo Inicial** | `0.0 s` a `1.0 s` | `0.0 %` | Registrar la condición inicial y validar estabilidad en reposo ($\omega_0$). |
-| **2. Escalón Aplicado** | `1.0 s` a `36.0 s` | `step %` | **35.0 s efectivos** para capturar transitorio completo y régimen permanente ($\omega_{ss}$). |
-| **3. Reposo Final** | `36.0 s` a `40.0 s` | `0.0 %` | Desaceleración y frenado seguro del motor. |
+| **1. Initial Rest** | `0.0 s` to `1.0 s` | `0.0 %` | Record initial condition and validate steady-state rest ($\omega_0$). |
+| **2. Active Step** | `1.0 s` to `36.0 s` | `step %` | **35.0 s effective** to capture complete transient and steady-state ($\omega_{ss}$). |
+| **3. Final Rest** | `36.0 s` to `40.0 s` | `0.0 %` | Deceleration and safe motor shutdown. |
 
 ```text
   PWM (%)
      ^
      |              +-----------------------------------+
 step |              |                                   |
-     |              |         Escalón (35.0 s)          |
+     |              |           Step (35.0 s)           |
      |              |                                   |
-  0% +--------------+                                   +---------------> Tiempo (s)
+  0% +--------------+                                   +---------------> Time (s)
      0             1.0                                 36.0           40.0
-       (Reposo 1s)                                      (Reposo fin 4s)
+        (Rest 1s)                                        (Rest end 4s)
 ```
 
 ---
 
-## ⚙️ Arquitectura de Software, Nodos y Tópicos
+## ⚙️ Software Architecture, Nodes, and Topics
 
 ```text
                    +---------------------+
@@ -261,21 +261,21 @@ step |              |                                   |
                v                             v
     +--------------------+       +------------------------+
     |  step_response_db  |       |  step_response_graph   |
-    |     (CSV Logger)   |       |  (Gráfica tiempo real) |
+    |     (CSV Logger)   |       |  (Real-Time Plotter)   |
     +--------------------+       +------------------------+
 ```
 
-### Contrato de Tópicos
+### Topic Contract
 
-* `/pwm_input` (`std_msgs/msg/Float32`): Comando de entrada al puente H ($-100.0$ a $100.0\,\%$).
-* `/vel_rad_s` (`std_msgs/msg/Float32`): Velocidad angular estimada por el encoder en $\text{rad/s}$ ($T_s = 0.1\text{ s}$).
-* `/vel_rpm` (`std_msgs/msg/Float32`): Velocidad angular en $\text{rpm}$ para visualización local y remota.
+* `/pwm_input` (`std_msgs/msg/Float32`): H-Bridge control command ($-100.0$ to $100.0\,\%$).
+* `/vel_rad_s` (`std_msgs/msg/Float32`): Angular velocity estimated by encoder in $\text{rad/s}$ ($T_s = 0.1\text{ s}$).
+* `/vel_rpm` (`std_msgs/msg/Float32`): Angular velocity in $\text{rpm}$ for local and remote visualization.
 
 ---
 
-## 📊 Formato de Datos (CSV) y Modelado Matemático (FOP / FOPDT)
+## 📊 Data Format (CSV) and Mathematical Modeling (FOP / FOPDT)
 
-Cada ejecución de `data_logger` genera un archivo con formato:
+Each run of `data_logger` generates a timestamped file:
 
 `motor_step_response_YYYYMMDD_HHMMSS.csv`
 
@@ -289,57 +289,57 @@ Time (s),Angular Velocity (rad/s),PWM (%)
 36.100,45.892100,0.000
 ```
 
-### Modelado Matemático
+### Mathematical Modeling
 
-A partir de los datos registrados se identifican las funciones de transferencia:
+From experimental data, transfer functions are identified:
 
-$$G_{\text{FOP}}(s) = \frac{K}{\tau s + 1} \qquad \text{o} \qquad G_{\text{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}$$
+$$G_{\text{FOP}}(s) = \frac{K}{\tau s + 1} \qquad \text{or} \qquad G_{\text{FOPDT}}(s) = \frac{K e^{-\theta s}}{\tau s + 1}$$
 
-donde:
+where:
 
-* **Ganancia estática:** $K = \frac{\omega_{ss} - \omega_0}{u_{ss} - u_0}\quad [\text{rad/s / } \\%\text{PWM}]$
-* **Constante de tiempo:** $\tau = t_{63.2\\%} - t_0$ (criterio del $63.2\\,\\%$ de la respuesta total).
-* **Retardo aparente:** $\theta \approx t_{\text{inicio}} - t_0$.
+* **Static Gain:** $K = \frac{\omega_{ss} - \omega_0}{u_{ss} - u_0}\quad [\text{rad/s / } \\%\text{PWM}]$
+* **Time Constant:** $\tau = t_{63.2\\%} - t_0$ (criterion of $63.2\\,\\%$ of total response).
+* **Apparent Delay:** $\theta \approx t_{\text{start}} - t_0$.
 
-### Scripts de Ajuste Paramétrico Offline
+### Offline Parametric Fitting Scripts
 
 ```bash
 cd stage_02_system_identification/analysis
 
-# Identificación Primer Orden (FOP)
+# First-Order Identification (FOP)
 python3 identify_fop.py ../data/raw/pwm_45/motor_step_response.csv
 
-# Identificación con Retardo (FOPDT)
+# Identification with Delay (FOPDT)
 python3 identify_fopdt.py ../data/raw/pwm_45/motor_step_response.csv
 
-# Comparar Puntos de Operación (30%, 45%, 60%)
+# Compare Operating Points (30%, 45%, 60%)
 python3 compare_operating_points.py ../data/raw/pwm_30/*.csv ../data/raw/pwm_45/*.csv ../data/raw/pwm_60/*.csv
 ```
 
 ---
 
-## 📁 Estructura del Repositorio
+## 📁 Repository Structure
 
 ```text
 ros2-for-control-dc-motor-system/
-├── README.md                            # Presentación y documentación general
-├── LICENSE                              # Licencia Apache-2.0
-├── .gitignore                           # Reglas de exclusión de Git
+├── README.md                            # Main presentation and documentation
+├── LICENSE                              # Apache-2.0 License
+├── .gitignore                           # Git ignore rules
 │
-├── docs/                                # Documentación académica y guías
-│   ├── guides/                          # Guías en LaTeX (Inteligente_guia0, 1, 2)
-│   ├── diagrams/                        # Diagramas de arquitectura
-│   └── images/                          # Recursos gráficos
+├── docs/                                # Academic documentation and guides
+│   ├── guides/                          # Markdown guides (Guía 0, 1, 2)
+│   ├── diagrams/                        # Architecture diagrams
+│   └── images/                          # Visual resources
 │
-├── firmware/                            # Firmware micro-ROS para ESP32 (PlatformIO)
-│   └── esp32_motor_step/                # Proyecto de adquisición y control del motor
-│       ├── platformio.ini               # Configuración de plataforma, libs y micro-ROS
+├── firmware/                            # micro-ROS firmware for ESP32 (PlatformIO)
+│   └── esp32_motor_step/                # Acquisition and motor control project
+│       ├── platformio.ini               # Platform, library, and micro-ROS config
 │       └── src/
-│           └── main.cpp                 # Firmware en C++ (encoder, PWM, OLED, micro-ROS)
+│           └── main.cpp                 # C++ firmware (encoder, PWM, OLED, micro-ROS)
 │
-├── ros2_ws/                             # Espacio de Trabajo ROS 2 (Software Ejecutable)
+├── ros2_ws/                             # ROS 2 Workspace (Executable Software)
 │   └── src/
-│       ├── dc_motor_bringup/            # Paquete de launch files y orquestación
+│       ├── dc_motor_bringup/            # Launch files and orchestration package
 │       │   └── launch/
 │       │       ├── motor_system.launch.py
 │       │       ├── stage_01_instrumentation.launch.py
@@ -348,45 +348,45 @@ ros2-for-control-dc-motor-system/
 │       │       ├── stage_04_control.launch.py
 │       │       └── stage_05_closed_loop.launch.py
 │       │
-│       ├── dc_motor_experiments/        # Paquete de adquisición y visualización
+│       ├── dc_motor_experiments/        # Acquisition and plotting package
 │       │   └── dc_motor_experiments/
-│       │       ├── step_response.py     # Generador de perfil escalón
-│       │       ├── data_logger.py       # Registrador CSV
-│       │       └── velocity_monitor.py  # Monitor gráfico tiempo real
+│       │       ├── step_response.py     # Step profile generator
+│       │       ├── data_logger.py       # CSV data logger
+│       │       └── velocity_monitor.py  # Real-time graphical monitor
 │       │
-│       └── dc_motor_control/            # Paquete de controladores (PI, PID, etc.)
+│       └── dc_motor_control/            # Controllers package (PI, PID, etc.)
 │           └── dc_motor_control/
 │               ├── pi_controller.py
 │               └── pid_controller.py
 │
-├── stage_00_system_design/              # Diseño de arquitectura y especificaciones
-├── stage_01_motor_instrumentation/      # Calibración del encoder (960 ticks/rev)
-├── stage_02_system_identification/      # Datos CSV (raw/processed) y análisis FOP/FOPDT
-│   ├── data/raw/                        # Ensayos a 30%, 45% y 60%
-│   ├── analysis/                        # Scripts de identificación matemática
-│   └── models/                          # Parámetros K, tau y theta
-├── stage_03_model_validation/           # Validación del modelo
-├── stage_04_controller_design/          # Diseño de controladores
-└── stage_05_closed_loop_control/        # Ensayos en lazo cerrado
+├── stage_00_system_design/              # System architecture and specifications
+├── stage_01_motor_instrumentation/      # Encoder calibration (960 ticks/rev)
+├── stage_02_system_identification/      # CSV data (raw/processed) and FOP/FOPDT analysis
+│   ├── data/raw/                        # 30%, 45%, and 60% test runs
+│   ├── analysis/                        # Mathematical identification scripts
+│   └── models/                          # Identified K, tau, and theta parameters
+├── stage_03_model_validation/           # Model validation metrics
+├── stage_04_controller_design/          # Controller design and simulations
+└── stage_05_closed_loop_control/        # Closed-loop experimental tests
 ```
 
 ---
 
-## 🔧 Solución de Problemas (Troubleshooting)
+## 🔧 Troubleshooting
 
-| Problema | Causa Posible | Solución |
+| Issue | Probable Cause | Solution |
 | :--- | :--- | :--- |
-| `Package 'dc_motor_bringup' not found` | No se ha ejecutado el `source` | Ejecuta `source ~/ros2-for-control-dc-motor-system/ros2_ws/install/setup.bash` en la terminal. |
-| `No module named 'matplotlib'` | Falta instalar librerías de Python en Ubuntu | Ejecuta `sudo apt install -y python3-matplotlib python3-scipy python3-numpy`. |
-| Error al abrir `/dev/ttyUSB0` | Permisos insuficientes en el puerto serie | Ejecuta `sudo chmod 666 /dev/ttyUSB0` o agrega tu usuario con `sudo usermod -a -G dialout $USER`. |
-| La gráfica no recibe datos | El micro-ROS Agent no está en ejecución | Inicia el agente: `ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200`. |
-| El motor no gira en el launch | El valor por defecto es `step:=0.0` | Especifica el porcentaje del escalón en el comando: `step:=45.0`. |
+| `Package 'dc_motor_bringup' not found` | Workspace environment not sourced | Run `source ~/ros2-for-control-dc-motor-system/ros2_ws/install/setup.bash` in the terminal. |
+| `No module named 'matplotlib'` | Missing Python libraries in Ubuntu | Run `sudo apt install -y python3-matplotlib python3-scipy python3-numpy`. |
+| Error opening `/dev/ttyUSB0` | Insufficient serial port permissions | Run `sudo chmod 666 /dev/ttyUSB0` or add user to dialout: `sudo usermod -a -G dialout $USER`. |
+| Real-time plot receives no data | micro-ROS Agent is not running | Start the agent: `ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200`. |
+| Motor does not spin during launch | Default argument is `step:=0.0` | Specify step percentage in the command: `step:=45.0`. |
 
 ---
 
-## 👥 Autores y Licencia
+## 👥 Authors and License
 
 * **Deimer Miranda Montoya, MSc.(c)** — `demiranda@unal.edu.co` / `deimer_miranda91162@elpoli.edu.co`
-* **Institución:** [Politécnico Colombiano Jaime Isaza Cadavid](https://www.politecnicojic.edu.co/) — Facultad de Ingeniería
-* **Asignatura:** Control Inteligente (`ING01343-ING278`)
-* **Licencia:** [Apache License 2.0](LICENSE)
+* **Institution:** [Politécnico Colombiano Jaime Isaza Cadavid](https://www.politecnicojic.edu.co/) — Faculty of Engineering
+* **Course:** Intelligent Control (`ING01343-ING278`)
+* **License:** [Apache License 2.0](LICENSE)
